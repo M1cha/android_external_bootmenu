@@ -125,7 +125,7 @@ struct UiMenuResult get_menu_selection(char** headers, char** tabs, struct UiMen
   while (ret.result < 0) {
 
 #ifdef BOARD_WITH_CPCAP
-    int level = battery_level();
+    /*int level = battery_level();
     if (level > 0) {
       if ((50 * progress_value) != level / 2) {
           progress_value = level / 100.0;
@@ -135,41 +135,53 @@ struct UiMenuResult get_menu_selection(char** headers, char** tabs, struct UiMen
           ui_show_progress(progress_value, 1);
           ui_set_progress(1.0);
       }
-    }
+    }*/
 #endif
 
-    int key = ui_wait_key();
+    struct ui_input_event eventresult = ui_wait_input();
     int visible = ui_text_visible();
-    int action = device_handle_key(key, visible);
+    int action = 0;
 
-    if (action < 0) {
-        switch (action) {
-          case HIGHLIGHT_UP:
-            --selected;
-            selected = ui_menu_select(selected);
-            break;
-          case HIGHLIGHT_DOWN:
-            ++selected;
-            selected = ui_menu_select(selected);
-            break;
-          case SELECT_ITEM:
-            ret.result = selected;
-	    	ret.type = RESULT_LIST;
-            break;
-          case ACTION_CANCEL:
-            ret.result = GO_BACK;
-	    	ret.type = RESULT_LIST;
-            break;
-          case NO_ACTION:
-            break;
-		  case ACTION_NEXTTAB:
-			ret.result = ui_setTab_next();
-			ret.type = RESULT_TAB;
-			break;
-        }
-    } else if (!menu_only) {
-      ret.result = action;
+    switch(eventresult.utype) {
+    	case UINPUTEVENT_TYPE_KEY:
+    		action = device_handle_key(eventresult.code, visible);
+
+    		if (action < 0) {
+				switch (action) {
+				  case HIGHLIGHT_UP:
+					--selected;
+					selected = ui_menu_select(selected);
+					break;
+				  case HIGHLIGHT_DOWN:
+					++selected;
+					selected = ui_menu_select(selected);
+					break;
+				  case SELECT_ITEM:
+					ret.result = selected;
+					ret.type = RESULT_LIST;
+					break;
+				  case ACTION_CANCEL:
+					ret.result = GO_BACK;
+					ret.type = RESULT_LIST;
+					break;
+				  case NO_ACTION:
+					break;
+				  case ACTION_NEXTTAB:
+					ret.result = ui_setTab_next();
+					ret.type = RESULT_TAB;
+					break;
+				}
+			} else if (!menu_only) {
+			  ret.result = action;
+			}
+    	break;
+
+    	case UINPUTEVENT_TYPE_TOUCH_START:
+    		fprintf(stdout, "Touch at %dx%d!\n", eventresult.posx, eventresult.posy);fflush(stdout);
+    	break;
     }
+
+
   }
 
   ui_end_menu();

@@ -47,6 +47,7 @@ void evt_exit();
 
 // Use KEY_* codes from <linux/input.h> or KEY_DREAM_* from "minui/minui.h".
 int ui_wait_key();            // waits for a key/button press, returns the code
+struct ui_input_event ui_wait_input();// waits for a input event
 int ui_key_pressed(int key);  // returns >0 if the code is currently pressed
 int ui_text_visible();        // returns >0 if text log is currently visible
 void ui_show_text(int visible);

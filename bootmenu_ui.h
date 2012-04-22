@@ -17,6 +17,23 @@
 #ifndef _RECOVERY_UI_H
 #define _RECOVERY_UI_H
 #include "common.h"
+#include <sys/time.h>
+#include <sys/types.h>
+#include <linux/types.h>
+
+#define UINPUTEVENT_TYPE_KEY 0
+#define UINPUTEVENT_TYPE_TOUCH_START 1
+#define UINPUTEVENT_TYPE_TOUCH_DRAG 2
+#define UINPUTEVENT_TYPE_TOUCH_RELEASE 3
+struct ui_input_event {
+	struct timeval time;
+	__u16 type;
+	__u16 code;
+	__s32 value;
+	int utype;
+	int posx;
+	int posy;
+};
 
 // Called when recovery starts up.  Returns 0.
 extern int device_recovery_start();

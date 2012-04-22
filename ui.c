@@ -108,7 +108,8 @@ static int menu_header_lines = 0;
 // Key event input queue
 static pthread_mutex_t key_queue_mutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t key_queue_cond = PTHREAD_COND_INITIALIZER;
-static int key_queue[256], key_queue_len = 0;
+static struct ui_input_event key_queue[256];
+static int key_queue_len = 0;
 static volatile char key_pressed[KEY_MAX + 1];
 static int evt_enabled = 0;
 
@@ -178,7 +179,6 @@ static void draw_menuitem_selection(int top, int height) {
 
 static int draw_menu_item(int top, int item) {
   int height=0;
-  fprintf(stdout, "type[%d]=%d;\n", item, menu[item].type);fflush(stdout);
   switch(menu[item].type) {
     
     case MENUITEM_SMALL:
@@ -292,11 +292,9 @@ static void draw_screen_locked(void)
     if (show_text) {
         i = 0;
         if (show_menu) {
-	    
-
-	    // draw menu
-	    gr_setfont(FONT_BIG);
-	    fprintf(stdout, "\n\n", marginTop);fflush(stdout);
+	    	// draw menu
+	    	gr_setfont(FONT_BIG);
+	    	
             for (; i < menu_items; ++i) {
             	//fprintf(stdout, "marginTop=%d\n", marginTop);fflush(stdout);
                 if (i == menu_sel) {
@@ -455,11 +453,23 @@ static void *input_thread(void *cookie)
 {
     int rel_sum = 0;
     int fake_key = 0;
+    int drag = 0;
+
     for (;;) {
         // wait for the next key event
         struct input_event ev;
+        struct ui_input_event uev;
+        int state = 0;
+
         do {
             ev_get(&ev, 0);
+            uev.time = ev.time;
+            uev.type = ev.type;
+            uev.code = ev.code;
+            uev.value = ev.value;
+            uev.utype = UINPUTEVENT_TYPE_KEY;
+            uev.posx = -1;
+            uev.posy = -1;
 
             if (ev.type == EV_SYN) {
                 continue;
@@ -484,10 +494,41 @@ static void *input_thread(void *cookie)
                         rel_sum = 0;
                     }
                 }
-            } else {
+            } else if (ev.type == EV_ABS) {
+            	int x, y;
+
+				uev.posx = x = ev.value >> 16;
+				uev.posy = y = ev.value & 0xFFFF;
+
+				if (ev.code == 0)
+				{
+					if (state == 0)
+					{
+						uev.utype = UINPUTEVENT_TYPE_TOUCH_RELEASE;
+					}
+					state = 0;
+					drag = 0;
+				}
+				else
+				{
+					if (!drag)
+					{
+						uev.utype = UINPUTEVENT_TYPE_TOUCH_START;
+						drag=1;
+					}
+					else
+					{
+						if (state == 0)
+						{
+							uev.utype = UINPUTEVENT_TYPE_TOUCH_DRAG;
+						}
+					}
+				}
+            }
+            else {
                 rel_sum = 0;
             }
-        } while (ev.type != EV_KEY || ev.code > KEY_MAX);
+        } while ((ev.type != EV_KEY && ev.type != EV_ABS) || ev.code > KEY_MAX);
 
         pthread_mutex_lock(&key_queue_mutex);
         if (!fake_key) {
@@ -499,12 +540,12 @@ static void *input_thread(void *cookie)
         fake_key = 0;
         const int queue_max = sizeof(key_queue) / sizeof(key_queue[0]);
         if (ev.value > 0 && key_queue_len < queue_max) {
-            key_queue[key_queue_len++] = ev.code;
+            key_queue[key_queue_len++] = uev;
             pthread_cond_signal(&key_queue_cond);
         }
         pthread_mutex_unlock(&key_queue_mutex);
 
-        if (ev.value > 0 && device_toggle_display(key_pressed, ev.code)) {
+        if (ev.type!= EV_ABS && ev.value > 0 && device_toggle_display(key_pressed, ev.code)) {
             pthread_mutex_lock(&gUpdateMutex);
             show_text = !show_text;
             update_screen_locked();
@@ -785,6 +826,14 @@ void ui_show_text(int visible)
 int ui_wait_key()
 {
     int key;
+    key = ui_wait_input().code;
+
+    return key;
+}
+
+struct ui_input_event ui_wait_input()
+{
+	struct ui_input_event key;
 
     pthread_mutex_lock(&key_queue_mutex);
     while (key_queue_len == 0) {
