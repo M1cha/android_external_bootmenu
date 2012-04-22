@@ -115,7 +115,6 @@ static int evt_enabled = 0;
 
 static int pointerx_start = -1;
 static int pointery_start = -1;
-static struct timeval pointer_timeval_last;
 static int pointerx = -1;
 static int pointery = -1;
 
@@ -214,9 +213,14 @@ static int draw_menu_item(int top, int item) {
 			draw_menuitem_selection(top,height);
 		}
 
-		if(ui_inside_menuitem(item, pointerx_start, pointery_start)==1 && ui_inside_menuitem(item, pointerx, pointery)==1) {
+		if(ui_inside_menuitem(item, pointerx_start, pointery_start)==1) {
 			color_text = gr_make_uicolor(0, 0, 0, 255);
-			color_background = gr_make_uicolor(255, 183, 0, 255);
+			if(ui_inside_menuitem(item, pointerx, pointery)==1) {
+				color_background = gr_make_uicolor(255, 183, 0, 255);
+			}
+			else {
+				color_background = gr_make_uicolor(255, 205, 86, 255);
+			}
 		}
 
 		// draw background
@@ -301,7 +305,7 @@ static void draw_screen_locked(void)
     draw_background_locked(gCurrentIcon);
     draw_progress_locked();
     int marginTop = STATUSBAR_HEIGHT+TABCONTROL_HEIGHT;
-   
+	
     if (show_text) {
 		i = 0;
 		if (show_menu) {
@@ -369,6 +373,10 @@ static void draw_screen_locked(void)
 		// draw divider-line
 		gr_color(0, 170, 255, 255);
 		gr_drawLine(0, STATUSBAR_HEIGHT+TABCONTROL_HEIGHT, gr_fb_width(), STATUSBAR_HEIGHT+TABCONTROL_HEIGHT, 4);
+
+		// DEBUG: Pointer-location
+		gr_color(255, 0, 0, 255);
+		gr_fill(pointerx, pointery, pointerx+10, pointery+10);
     }
 }
 
@@ -419,13 +427,13 @@ static void update_screen_locked(void)
 // Should only be called with gUpdateMutex locked.
 static void update_progress_locked(void)
 {
-    if (show_text || !gPagesIdentical) {
+    /*if (show_text || !gPagesIdentical) {
         draw_screen_locked();    // Must redraw the whole screen
         gPagesIdentical = 1;
     } else {
         draw_progress_locked();  // Draw only the progress bar
     }
-    gr_flip();
+    gr_flip();*/
 }
 
 // Keeps the progress bar updated, even when the process is otherwise busy.
@@ -558,13 +566,22 @@ static void *input_thread(void *cookie)
         if (ev.type!= EV_ABS && ev.value > 0 && device_toggle_display(key_pressed, ev.code)) {
             pthread_mutex_lock(&gUpdateMutex);
             show_text = !show_text;
-            update_screen_locked();
+            //update_screen_locked();
             pthread_mutex_unlock(&gUpdateMutex);
         }
 
         if (ev.value > 0 && device_reboot_now(key_pressed, ev.code)) {
             reboot(RB_AUTOBOOT);
         }
+    }
+    return NULL;
+}
+
+static void *redraw_thread(void *cookie)
+{
+    for (;;) {
+    	usleep(1000000 / 60);
+    	update_screen_locked();
     }
     return NULL;
 }
@@ -608,6 +625,8 @@ void ui_init(void)
 
     pthread_create(&t, NULL, input_thread, NULL);
     evt_enabled = 1;
+
+    pthread_create(&t, NULL, redraw_thread, NULL);
 }
 
 void ui_free_bitmaps(void)
@@ -659,7 +678,6 @@ void ui_set_background(int icon)
 {
     pthread_mutex_lock(&gUpdateMutex);
     gCurrentIcon = gBackgroundIcon[icon];
-    update_screen_locked();
     pthread_mutex_unlock(&gUpdateMutex);
 }
 
@@ -713,7 +731,6 @@ void ui_reset_progress()
     gProgressScopeTime = gProgressScopeDuration = 0;
     gProgress = 0;
     percent = 0.0;
-    update_screen_locked();
     pthread_mutex_unlock(&gUpdateMutex);
 }
 
@@ -737,7 +754,6 @@ void ui_print_str(char *str) {
             if (*ptr != '\n') text[text_row][text_col++] = *ptr;
         }
         text[text_row][text_col] = '\0';
-        update_screen_locked();
     }
     pthread_mutex_unlock(&gUpdateMutex);
 
@@ -777,7 +793,6 @@ void ui_start_menu(char** headers, char** tabs, struct UiMenuItem* items, int in
         menu_items = i;
         show_menu = 1;
         menu_sel = initial_selection;
-        update_screen_locked();
     }
     pthread_mutex_unlock(&gUpdateMutex);
 }
@@ -800,7 +815,6 @@ int ui_menu_select(int sel) {
         }
 
         sel = menu_sel;
-        if (menu_sel != old_sel) update_screen_locked();
     }
     pthread_mutex_unlock(&gUpdateMutex);
     fprintf(stdout, "selection: %d\n", sel);fflush(stdout);
@@ -812,7 +826,6 @@ void ui_end_menu() {
     pthread_mutex_lock(&gUpdateMutex);
     if (show_menu > 0 && text_rows > 0 && text_cols > 0) {
         show_menu = 0;
-        update_screen_locked();
     }
     pthread_mutex_unlock(&gUpdateMutex);
 }
@@ -829,7 +842,6 @@ void ui_show_text(int visible)
 {
     pthread_mutex_lock(&gUpdateMutex);
     show_text = visible;
-    update_screen_locked();
     pthread_mutex_unlock(&gUpdateMutex);
 }
 
@@ -905,11 +917,6 @@ int ui_setTab_next() {
     activeTab++;
   }
   
-  // update screen
-  pthread_mutex_lock(&gUpdateMutex);
-  update_screen_locked();
-  pthread_mutex_unlock(&gUpdateMutex);
-  
   return activeTab;
 }
 
@@ -933,47 +940,24 @@ int ui_inside_menuitem(int item, int x, int y) {
 	}
 	return 0;
 }
-/* Return 1 if the difference is negative, otherwise 0.  */
-int timeval_subtract(struct timeval *result, struct timeval *t2, struct timeval *t1)
-{
-    long int diff = (t2->tv_usec + 1000000 * t2->tv_sec) - (t1->tv_usec + 1000000 * t1->tv_sec);
-    result->tv_sec = diff / 1000000;
-    result->tv_usec = diff % 1000000;
-
-    return (diff<0);
-}
 
 struct ui_touchresult ui_handle_touch(struct ui_input_event uev) {
 	int i;
 	int clickedItem=-1;
 	struct ui_touchresult ret = {TOUCHRESULT_TYPE_EMPTY,-1};
-	int redraw;
-	struct timeval tvNow, tvDiff;
 
 	switch(uev.utype) {
 		case UINPUTEVENT_TYPE_TOUCH_START:
 			pointerx_start = pointerx = uev.posx;
 			pointery_start = pointery = uev.posy;
-			gettimeofday(&pointer_timeval_last, NULL);
-			ui_update_screen();
 		break;
 
 		case UINPUTEVENT_TYPE_TOUCH_DRAG:
-			/*gettimeofday(&tvNow, NULL);
-			timeval_subtract(&tvDiff, &tvNow, &pointer_timeval_last);
-
 			pointerx = uev.posx;
 			pointery = uev.posy;
-
-			if(tvDiff.tv_sec>=1) {
-				ui_update_screen();
-			}*/
 		break;
 
 		case UINPUTEVENT_TYPE_TOUCH_RELEASE:
-			gettimeofday(&tvNow, NULL);
-			timeval_subtract(&tvDiff, &tvNow, &pointer_timeval_last);
-
 			// check onclick for listitem
 			for(i=0; i<menu_items; ++i) {
 				if(ui_inside_menuitem(i, pointerx_start, pointery_start)==1 && ui_inside_menuitem(i, uev.posx, uev.posy)==1) {
@@ -983,17 +967,10 @@ struct ui_touchresult ui_handle_touch(struct ui_input_event uev) {
 				}
 			}
 
-			pointerx = -1;
-			pointerx = -1;
-			ui_update_screen();
+			pointerx_start = pointerx = -1;
+			pointery_start = pointery = -1;
 		break;
 	}
 
 	return ret;
-}
-
-void ui_update_screen() {
-	pthread_mutex_lock(&gUpdateMutex);
-	update_screen_locked();
-	pthread_mutex_unlock(&gUpdateMutex);
 }

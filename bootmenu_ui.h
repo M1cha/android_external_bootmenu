@@ -109,8 +109,6 @@ static int drawTab(int left, const char* s, int active);
 void ui_set_activeTab(int i);
 int ui_setTab_next();
 int ui_inside_menuitem(int item, int x, int y);
-int timeval_subtract(struct timeval *result, struct timeval *t2, struct timeval *t1);
 struct ui_touchresult ui_handle_touch(struct ui_input_event uev);
-void ui_update_screen();
 
 #endif
