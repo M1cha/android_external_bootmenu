@@ -19,6 +19,25 @@
 
 #include <stdio.h>
 
+#define RESULT_TAB  1
+#define RESULT_LIST 2
+
+struct UiMenuResult {
+  int type;
+  int result;
+};
+
+#define MENUITEM_FULL 1
+#define MENUITEM_SMALL 2
+#define MENUITEM_MINUI_STANDARD 3
+#define MENUITEM_NULL -1
+struct UiMenuItem {
+  int type;
+  char *title;
+  char *description;
+};
+
+
 // Initialize the graphics system.
 void ui_init();
 void ui_final();
@@ -43,13 +62,15 @@ void ui_print_str(char *str);
 // Display some header text followed by a menu of items, which appears
 // at the top of the screen (in place of any scrolling ui_print()
 // output, if necessary).
-void ui_start_menu(char** headers, char** items, int initial_selection);
+void ui_start_menu(char** headers, char** tabs, struct UiMenuItem* items, int initial_selection);
 // Set the menu highlight to the given index, and return it (capped to
 // the range [0..numitems).
 int ui_menu_select(int sel);
 // End menu mode, resetting the text overlay so that ui_print()
 // statements will be displayed.
 void ui_end_menu();
+
+struct UiMenuItem buildMenuItem(int type, char *title, char *description);
 
 // Set the icon (normally the only thing visible besides the progress bar).
 enum {

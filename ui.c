@@ -24,18 +24,36 @@
 #include <sys/time.h>
 #include <time.h>
 #include <unistd.h>
+#include <sys/time.h>
+#include <stdint.h> 
 
 #include "common.h"
 #include "minui/minui.h"
 #include "bootmenu_ui.h"
+#include "extendedcommands.h"
 
 #ifndef MAX_ROWS
 #define MAX_COLS 96
 #define MAX_ROWS 40
 #endif
 
-#define CHAR_WIDTH 10
-#define CHAR_HEIGHT 18
+
+static int SQUARE_WIDTH=5;
+static int SQUARE_TOP=100;
+static int SQUARE_RIGHT=20;
+static int SQUARE_BOTTOM=20;
+static int SQUARE_LEFT=20;
+
+#define ROW_HEIGHT 100
+#define STATUSBAR_HEIGHT 40
+#define TABCONTROL_HEIGHT 90
+static char** tabitems;
+static int activeTab = 0;
+
+static int square_inner_top;
+static int square_inner_right;
+static int square_inner_bottom;
+static int square_inner_left;
 
 static pthread_mutex_t gUpdateMutex = PTHREAD_MUTEX_INITIALIZER;
 static gr_surface gBackgroundIcon[NUM_BACKGROUND_ICONS];
@@ -80,10 +98,12 @@ static int show_text = 0;
 static bool show_percent = true;
 static float percent = 0.0;
 
-static char menu[MAX_ROWS][MAX_COLS];
+static struct UiMenuItem *menu;
 static int show_menu = 0;
-static int menu_top = 0, menu_items = 0, menu_sel = 0;
+static int menu_items = 0, menu_sel = 0;
 static int menu_show_start = 0;             // this is line which menu display is starting at
+static char menu_headers[MAX_ROWS][MAX_COLS];
+static int menu_header_lines = 0;
 
 // Key event input queue
 static pthread_mutex_t key_queue_mutex = PTHREAD_MUTEX_INITIALIZER;
@@ -152,9 +172,98 @@ static void draw_progress_locked()
     }
 }
 
-static void draw_text_line(int row, const char* t) {
+static void draw_menuitem_selection(int top, int height) {
+  gr_fill(square_inner_left, top, square_inner_right, top+height);
+}
+
+static int draw_menu_item(int top, int item) {
+  int height=0;
+  fprintf(stdout, "type[%d]=%d;\n", item, menu[item].type);fflush(stdout);
+  switch(menu[item].type) {
+    
+    case MENUITEM_SMALL:
+      height=80;
+      
+      // draw selection 
+      if(menu_sel==item) {
+		gr_color(255, 255, 255, 255);
+		draw_menuitem_selection(top,height);
+		gr_color(0, 0, 0, 255);
+      }
+      else {
+    	gr_color(255, 255, 255, 255);
+      }
+      gr_setfont(FONT_BIG);
+      gr_text_cut(square_inner_left, top+height-height/2+gr_getfont_cheight()/2-gr_getfont_cheightfix(), menu[item].title, square_inner_right,top+height);
+      gr_color(164,164,164,255);
+      gr_drawLine(square_inner_left, top+height, square_inner_right, top+height, 1);
+    break;
+    
+    case MENUITEM_MINUI_STANDARD:
+      height=18;
+      
+      // draw selection 
+      if(menu_sel==item) {
+	gr_color(64, 96, 255, 255);
+	draw_menuitem_selection(top,height);
+	gr_color(0, 0, 0, 255);
+      }
+      else {
+	gr_color(64, 96, 255, 255);
+      }
+      gr_setfont(FONT_NORMAL);
+      gr_text_cut(square_inner_left, top+height-height/2+gr_getfont_cheight()/2-gr_getfont_cheightfix(), menu[item].title, square_inner_right,top+height);
+    break;
+    
+    case MENUITEM_FULL:
+      height=100;
+      
+      // draw selection 
+      if(menu_sel==item) {
+	gr_color(255, 255, 255, 255);
+	draw_menuitem_selection(top,height);
+	gr_color(0, 0, 0, 255);
+      }
+      else {
+	gr_color(255, 255, 255, 255);
+      }
+      gr_setfont(FONT_NORMAL);
+      
+      int comboheight = gr_getfont_cheight()*2;
+      int combomiddle = top+height-height/2+gr_getfont_cheight()/2-gr_getfont_cheightfix();
+      int combotop = top+(combomiddle-top);
+      
+      gr_text_cut(square_inner_left, combotop+height, menu[item].title, -1,-1);
+      
+      /*if(menu[item].description!=NULL) {
+	comboheight*=2;
+	//gr_setfont(FONT_NORMAL);
+	//gr_text_cut(square_inner_left, top+height-height/2+gr_getfont_cheight()/2-gr_getfont_cheightfix(), menu[item].description, square_inner_right,top+height);
+      }*/
+      
+      
+      
+      gr_color(164,164,164,255);
+      gr_drawLine(square_inner_left, top+height, square_inner_right, top+height, 1);
+    break;
+      
+    case MENUITEM_NULL:
+    default:
+      break;
+  }
+
+  return top+height;
+}
+
+/*static void draw_header_line(int row, const char* t) {
   if (t[0] != '\0') {
-    gr_text(0, (row+1)*CHAR_HEIGHT-1, t);
+    gr_text(square_inner_left-3, 20+(row+1)*gr_getfont_cheight()-1, t);
+  }
+}*/
+
+static void draw_log_line(int row, const char* t) {
+  if (t[0] != '\0') {
+    gr_text(square_inner_left-3, square_inner_top+(square_inner_bottom-square_inner_top)+(row+1)*gr_getfont_cheight()-1, t);
   }
 }
 
@@ -162,39 +271,132 @@ static void draw_text_line(int row, const char* t) {
 // Should only be called with gUpdateMutex locked.
 static void draw_screen_locked(void)
 {
+    int i;
     draw_background_locked(gCurrentIcon);
     draw_progress_locked();
-
+    int marginTop = STATUSBAR_HEIGHT+TABCONTROL_HEIGHT;
+    
+    // draw transparent overlay
+    /*if(show_text) {
+      gr_color(0, 0, 0, 160);
+      gr_fill(0, 0, gr_fb_width(), gr_fb_height());
+    }*/
+    
+    // draw headers
+    gr_setfont(FONT_NORMAL);
+    /*gr_color(255, 255, 255, 255);
+    for (i=0; i < menu_header_lines; ++i) {
+      draw_header_line(i, menu_headers[i]);
+    }*/
+   
     if (show_text) {
-        gr_color(0, 0, 0, 160);
-        gr_fill(0, 0, gr_fb_width(), gr_fb_height());
-
-        int i = 0;
+        i = 0;
         if (show_menu) {
-            gr_color(64, 96, 255, 255);
-            gr_fill(0, (menu_top+menu_sel) * CHAR_HEIGHT,
-                    gr_fb_width(), (menu_top+menu_sel+1)*CHAR_HEIGHT+1);
+	    
 
-            for (; i < menu_top + menu_items; ++i) {
-                if (i == menu_top + menu_sel) {
-                    gr_color(255, 255, 255, 255);
-                    draw_text_line(i, menu[i]);
-                    gr_color(64, 96, 255, 255);
+	    // draw menu
+	    gr_setfont(FONT_BIG);
+	    fprintf(stdout, "\n\n", marginTop);fflush(stdout);
+            for (; i < menu_items; ++i) {
+            	//fprintf(stdout, "marginTop=%d\n", marginTop);fflush(stdout);
+                if (i == menu_sel) {
+		    		// draw item
+                    gr_color(0, 0, 0, 255);
+                    marginTop = draw_menu_item(marginTop, i);
+                    
                 } else {
-                    draw_text_line(i, menu[i]);
+		    		gr_color(255, 255, 255, 255);
+                    marginTop = draw_menu_item(marginTop, i);
                 }
             }
-            gr_fill(0, i*CHAR_HEIGHT+CHAR_HEIGHT/2-1,
-                    gr_fb_width(), i*CHAR_HEIGHT+CHAR_HEIGHT/2+1);
             ++i;
         }
 
-        gr_color(255, 255, 0, 255);
+        
 
-        for (; i < text_rows; ++i) {
-            draw_text_line(i, text[(i+text_top) % text_rows]);
+	// draw log
+	gr_setfont(FONT_NORMAL);
+	gr_color(255, 255, 0, 255);
+        for (i=0; i < text_rows; ++i) {
+            draw_log_line(i, text[(i+text_top) % text_rows]);
         }
-    }
+        
+        // draw statusbar
+        int statusbar_right = 10;
+	gr_color(0, 0, 0, 160);
+	gr_fill(0, 0, gr_fb_width(), STATUSBAR_HEIGHT);
+	
+	// draw clock
+	char time[50];
+	ui_get_time(time);
+	gr_color(0, 170, 255, 255);
+	gr_text(gr_fb_width()-5*gr_getfont_cwidth()-statusbar_right,gr_getfont_cheight()/2+STATUSBAR_HEIGHT/2-gr_getfont_cheightfix(),time);
+	statusbar_right+=5*gr_getfont_cwidth();
+	
+#ifdef BOARD_WITH_CPCAP
+	// draw battery
+	int level = battery_level();
+	char level_s[5];
+	sprintf(level_s, "%d%%", level);
+	
+	// count size of string */
+	int level_s_size;
+	for(level_s_size=0; level_s[level_s_size]; ++level_s_size) {}
+	
+	gr_text(gr_fb_width()-level_s_size*gr_getfont_cwidth()-statusbar_right,gr_getfont_cheight()/2+STATUSBAR_HEIGHT/2-gr_getfont_cheightfix(),level_s);
+#endif
+	
+	// draw tabcontrol
+	int tableft=0;
+	gr_color(0, 0, 0, 255);
+	gr_fill(0, STATUSBAR_HEIGHT, gr_fb_width(), STATUSBAR_HEIGHT+TABCONTROL_HEIGHT);
+	if(tabitems!=NULL) {
+	  for(i=0; tabitems[i]; ++i) {
+	      int active=0;
+	      if(i==activeTab)active=1;
+	      tableft = drawTab(tableft, tabitems[i], active);
+	  }
+	}
+	
+	// draw divider-line
+	gr_color(0, 170, 255, 255);
+	gr_drawLine(0, STATUSBAR_HEIGHT+TABCONTROL_HEIGHT, gr_fb_width(), STATUSBAR_HEIGHT+TABCONTROL_HEIGHT, 4);
+  }
+}
+
+static int drawTab(int left, const char* s, int active)
+{
+  int s_size;
+  int width;
+  
+  // count size of string */
+  for(s_size=0; s[s_size]; ++s_size) {}
+  
+  width = s_size*gr_getfont_cwidth()+40;
+  
+  // tab-background
+  gr_color(0, 0, 0, 255);
+  gr_fill(left, STATUSBAR_HEIGHT, left+width, STATUSBAR_HEIGHT+TABCONTROL_HEIGHT);
+  
+  // text
+  gr_color(255, 255, 255, 255);
+  gr_text(left+20, STATUSBAR_HEIGHT+gr_getfont_cheight()/2+TABCONTROL_HEIGHT/2-gr_getfont_cheightfix(), s);
+  
+  // active-marker
+  if(active==1) {
+    gr_color(0, 170, 255, 255);
+    gr_fill(left, STATUSBAR_HEIGHT+TABCONTROL_HEIGHT-10, left+width, STATUSBAR_HEIGHT+TABCONTROL_HEIGHT);
+  }
+  
+  return left+width;
+}
+
+static void recalcSquare()
+{
+    square_inner_top = SQUARE_TOP+SQUARE_WIDTH-2;
+    square_inner_right = gr_fb_width()-SQUARE_RIGHT-SQUARE_WIDTH;
+    square_inner_bottom = SQUARE_BOTTOM;
+    square_inner_left = SQUARE_LEFT+SQUARE_WIDTH;
 }
 
 // Redraw everything on the screen and flip the screen (make it visible).
@@ -338,13 +540,14 @@ void ui_init(void)
 {
     gr_init();
     ev_init();
+    recalcSquare();
 
     text_col = text_row = 0;
-    text_rows = gr_fb_height() / CHAR_HEIGHT;
+    text_rows = gr_fb_height() / ROW_HEIGHT;
     if (text_rows > MAX_ROWS) text_rows = MAX_ROWS;
     text_top = 1;
 
-    text_cols = gr_fb_width() / CHAR_WIDTH;
+    text_cols = gr_fb_width() / gr_getfont_cwidth();
     if (text_cols > MAX_COLS - 1) text_cols = MAX_COLS - 1;
 
     ui_create_bitmaps();
@@ -500,22 +703,27 @@ void ui_print(const char *fmt, ...)
     ui_print_str(buf);
 }
 
-void ui_start_menu(char** headers, char** items, int initial_selection) {
+void ui_start_menu(char** headers, char** tabs, struct UiMenuItem* items, int initial_selection) {
     int i;
     pthread_mutex_lock(&gUpdateMutex);
+    
     if (text_rows > 0 && text_cols > 0) {
-        for (i = 0; i < text_rows; ++i) {
+      
+		tabitems=tabs;
+		menu=items;
+	
+        for (i = 0; i < MAX_ROWS; ++i) {
             if (headers[i] == NULL) break;
-            strncpy(menu[i], headers[i], text_cols-1);
-            menu[i][text_cols-1] = '\0';
+            strncpy(menu_headers[i], headers[i], text_cols-1);
+            menu_headers[i][text_cols-1] = '\0';
         }
-        menu_top = i;
-        for (; i < text_rows; ++i) {
-            if (items[i-menu_top] == NULL) break;
-            strncpy(menu[i], items[i-menu_top], text_cols-1);
-            menu[i][text_cols-1] = '\0';
+	menu_header_lines = i;
+
+	// count menuitems
+        for (i = 0; i < MAX_ROWS; ++i) {
+	    if (items[i].type == MENUITEM_NULL) break;
         }
-        menu_items = i - menu_top;
+        menu_items = i;
         show_menu = 1;
         menu_sel = initial_selection;
         update_screen_locked();
@@ -536,14 +744,15 @@ int ui_menu_select(int sel) {
             menu_show_start = menu_sel;
         }
 
-        if (menu_sel - menu_show_start + menu_top >= text_rows) {
-            menu_show_start = menu_sel + menu_top - text_rows + 1;
+        if (menu_sel - menu_show_start >= text_rows) {
+            menu_show_start = menu_sel - text_rows + 1;
         }
 
         sel = menu_sel;
         if (menu_sel != old_sel) update_screen_locked();
     }
     pthread_mutex_unlock(&gUpdateMutex);
+    fprintf(stdout, "selection: %d\n", sel);fflush(stdout);
     return sel;
 }
 
@@ -599,4 +808,53 @@ void ui_clear_key_queue() {
     pthread_mutex_lock(&key_queue_mutex);
     key_queue_len = 0;
     pthread_mutex_unlock(&key_queue_mutex);
+}
+
+void ui_get_time(char* result)
+{
+  time_t rawtime;
+  struct tm * timeinfo;
+  //char buffer [80];
+
+  time ( &rawtime );
+  timeinfo = localtime ( &rawtime );
+
+  strftime (result,80,"%I:%M",timeinfo);
+}
+
+void ui_set_activeTab(int i)
+{
+  activeTab=i;
+}
+
+int ui_get_activeTab()
+{
+  return activeTab;
+}
+
+int ui_setTab_next() {
+  int i;
+  
+  // count tabs
+  for(i=0; tabitems[i]; i++){}
+  
+  // set next tab as active tab
+  if(activeTab>=i-1) {
+    activeTab=0;  
+  }
+  else {
+    activeTab++;
+  }
+  
+  // update screen
+  pthread_mutex_lock(&gUpdateMutex);
+  update_screen_locked();
+  pthread_mutex_unlock(&gUpdateMutex);
+  
+  return activeTab;
+}
+
+struct UiMenuItem buildMenuItem(int type, char *title, char *description) {
+  struct UiMenuItem item = {type, title, description};
+  return item;
 }

@@ -46,20 +46,20 @@ enum {
 
 #define ITEM_LAST        5
 
-char* MENU_ITEMS[] = {
-    "  [Reboot]",
-    "  +Boot -->",
+struct UiMenuItem MENU_ITEMS[] = {
+  {MENUITEM_SMALL, "  [Reboot]", NULL},
+  {MENUITEM_SMALL, "  +Boot -->", NULL},
 #if STOCK_VERSION
-    "  +System -->",
+  {MENUITEM_SMALL, "  +System -->", ""},
 #elif !defined(NO_OVERCLOCK)
-    "  +CPU Settings -->",
+  {MENUITEM_SMALL, "  +CPU Settings -->", ""},
 #else
-    "",
+  {MENUITEM_SMALL, "", ""},
 #endif
-    "  +Recovery -->",
-    "  +Tools -->",
-    "  [Shutdown]",
-    NULL
+  {MENUITEM_SMALL, "  +Recovery -->", ""},
+  {MENUITEM_SMALL, "  +Tools -->", ""},
+  {MENUITEM_SMALL, "  [Shutdown]", ""},
+  {MENUITEM_NULL, NULL, NULL},
 };
 
 static char** main_headers = NULL;
@@ -110,17 +110,19 @@ void free_menu_headers(char **headers) {
  * get_menu_selection()
  *
  */
-int get_menu_selection(char** headers, char** items, int menu_only,
+struct UiMenuResult get_menu_selection(char** headers, char** tabs, struct UiMenuItem* items, int menu_only,
                        int initial_selection) {
   // throw away keys pressed previously, so user doesn't
   // accidentally trigger menu items.
   ui_clear_key_queue();
 
-  ui_start_menu(headers, items, initial_selection);
+  ui_start_menu(headers, tabs, items, initial_selection);
   int selected = initial_selection;
-  int chosen_item = -1;
+  struct UiMenuResult ret;
+  ret.result = -1;
+  ret.type = -1;
 
-  while (chosen_item < 0) {
+  while (ret.result < 0) {
 
 #ifdef BOARD_WITH_CPCAP
     int level = battery_level();
@@ -151,22 +153,28 @@ int get_menu_selection(char** headers, char** items, int menu_only,
             selected = ui_menu_select(selected);
             break;
           case SELECT_ITEM:
-            chosen_item = selected;
+            ret.result = selected;
+	    	ret.type = RESULT_LIST;
             break;
           case ACTION_CANCEL:
-            chosen_item = GO_BACK;
+            ret.result = GO_BACK;
+	    	ret.type = RESULT_LIST;
             break;
           case NO_ACTION:
             break;
+		  case ACTION_NEXTTAB:
+			ret.result = ui_setTab_next();
+			ret.type = RESULT_TAB;
+			break;
         }
     } else if (!menu_only) {
-      chosen_item = action;
+      ret.result = action;
     }
   }
 
   ui_end_menu();
 
-  return chosen_item;
+  return ret;
 }
 
 /**
@@ -186,16 +194,15 @@ static void prompt_and_wait() {
   int select = 0;
 
   for (;;) {
-
-    int chosen_item = get_menu_selection(main_headers, MENU_ITEMS, 0, select);
+    struct UiMenuResult menuret = get_menu_selection(main_headers, TABS, MENU_ITEMS, 0, select);
 
     // device-specific code may take some action here.  It may
     // return one of the core actions handled in the switch
     // statement below.
 
-    if (chosen_item >= 0 && chosen_item <= ITEM_LAST) {
+    if (menuret.result >= 0 && menuret.result <= ITEM_LAST) {
 
-      switch (chosen_item) {
+      switch (menuret.result) {
       case ITEM_REBOOT:
         sync();
         reboot(RB_AUTOBOOT);
@@ -224,7 +231,7 @@ static void prompt_and_wait() {
         return;
       }
 
-      select = chosen_item;
+      select = menuret.result;
     }
   }
 }
@@ -401,40 +408,25 @@ static int run_bootmenu(void) {
  *
  */
 int main(int argc, char **argv) {
-  char* hijacked_executable = argv[0];
-  int result;
 
-  if (NULL != strstr(hijacked_executable, "bootmenu")) {
-    fprintf(stdout, "Run BootMenu..\n");
-    result = run_bootmenu();
-    sync();
-    return result;
-  }
-  else if (argc >= 3 && 0 == strcmp(argv[2], "userdata")) {
-    result = run_bootmenu();
-    real_execute(argc, argv);
-    bypass_sign("no");
-    sync();
-    return result;
-  }
-  else if (argc >= 3 && 0 == strcmp(argv[2], "pds")) {
-    //kept for stock rom compatibility, please use postbootmenu
-    real_execute(argc, argv);
-    exec_script(FILE_OVERCLOCK, DISABLE);
-    result = exec_script(FILE_POST_MENU, DISABLE);
-    bypass_sign("no");
-    sync();
-    return result;
-  }
-  else if (argc == 2 && 0 == strcmp(argv[1], "postbootmenu")) {
-    exec_script(FILE_OVERCLOCK, DISABLE);
-    result = exec_script(FILE_POST_MENU, DISABLE);
-    bypass_sign("no");
-    sync();
-    return result;
-  }
-  else {
-    return real_execute(argc, argv);
-  }
+  // initialize ui
+  ui_init();
+  //ui_set_background(BACKGROUND_DEFAULT);
+  ui_show_text(ENABLE);
+  LOGI("Start Android BootMenu....\n");
+  ui_reset_progress();
+  
+  
+  main_headers = prepend_title((const char**)MENU_HEADERS);
+ /* ui_start_menu(main_headers, TABS, MENU_ITEMS, 0);
+  ui_wait_key();
+  ui_end_menu();*/
+  
+  //get_menu_selection(main_headers, TABS, MENU_ITEMS, 0, 0);
+  prompt_and_wait();
+  free_menu_headers(main_headers);
+  
+  ui_finish();
+  return 0;
 }
 
