@@ -47,18 +47,18 @@ enum {
 #define ITEM_LAST        5
 
 struct UiMenuItem MENU_ITEMS[] = {
-  {MENUITEM_SMALL, "  [Reboot]", NULL},
-  {MENUITEM_SMALL, "  +Boot -->", NULL},
+  {MENUITEM_SMALL, "Reboot", NULL},
+  {MENUITEM_SMALL, "Boot", NULL},
 #if STOCK_VERSION
-  {MENUITEM_SMALL, "  +System -->", ""},
+  {MENUITEM_SMALL, "System", ""},
 #elif !defined(NO_OVERCLOCK)
-  {MENUITEM_SMALL, "  +CPU Settings -->", ""},
+  {MENUITEM_SMALL, "CPU Settings", ""},
 #else
   {MENUITEM_SMALL, "", ""},
 #endif
-  {MENUITEM_SMALL, "  +Recovery -->", ""},
-  {MENUITEM_SMALL, "  +Tools -->", ""},
-  {MENUITEM_SMALL, "  [Shutdown]", ""},
+  {MENUITEM_SMALL, "Recovery", ""},
+  {MENUITEM_SMALL, "Tools", ""},
+  {MENUITEM_SMALL, "Shutdown", ""},
   {MENUITEM_NULL, NULL, NULL},
 };
 

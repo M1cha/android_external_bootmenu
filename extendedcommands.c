@@ -132,21 +132,21 @@ int show_menu_boot(void) {
   };*/
   
   struct UiMenuItem items[(MODES_COUNT - 3 + 6)] = {
-    {MENUITEM_SMALL, "  +Set Default: [" LABEL_2NDINIT "] -->", NULL},
-    {MENUITEM_SMALL, "  [" LABEL_2NDINIT "]", NULL},
-    {MENUITEM_SMALL, "  [" LABEL_2NDBOOT "]", NULL},
-    {MENUITEM_SMALL, "  [" LABEL_2NDSYSTEM "]", NULL},
-    {MENUITEM_SMALL, "  [" LABEL_NORMAL "]", NULL},
+    {MENUITEM_SMALL, "Set Default: [" LABEL_2NDINIT "]", NULL},
+    {MENUITEM_SMALL, LABEL_2NDINIT, NULL},
+    {MENUITEM_SMALL, LABEL_2NDBOOT, NULL},
+    {MENUITEM_SMALL, LABEL_2NDSYSTEM, NULL},
+    {MENUITEM_SMALL, LABEL_NORMAL, NULL},
     
-    {MENUITEM_SMALL, "  [" LABEL_TOGGLE_ADB "]", NULL},
+    {MENUITEM_SMALL, LABEL_TOGGLE_ADB, NULL},
     
 #ifdef DEBUG_ALLOC
-    {MENUITEM_SMALL, "  [test fb]", NULL},
-    {MENUITEM_SMALL, "  [test evt]", NULL},
-    {MENUITEM_SMALL, "  [test png]", NULL},
-    {MENUITEM_SMALL, "  [test all]", NULL},
+    {MENUITEM_SMALL, "test fb", NULL},
+    {MENUITEM_SMALL, "test evt", NULL},
+    {MENUITEM_SMALL, "test png", NULL},
+    {MENUITEM_SMALL, "test all", NULL},
 #endif
-    {MENUITEM_SMALL, "  --Go Back.", NULL},
+    {MENUITEM_SMALL, "<--Go Back", NULL},
     {MENUITEM_NULL, NULL, NULL},
   };
 
@@ -158,7 +158,7 @@ int show_menu_boot(void) {
   for (;;) {
     bootmode = get_default_bootmode();
 
-    sprintf(opt_def, "  +Set Default: [%s] -->", str_mode(bootmode) );
+    sprintf(opt_def, "Set Default: [%s]", str_mode(bootmode) );
     items[0].title = opt_def;
 
     //Hide unavailables modes
@@ -170,7 +170,7 @@ int show_menu_boot(void) {
     }
 
     //ADB Toggle
-    sprintf(opt_adb, "  " LABEL_TOGGLE_ADB " %s", boot_with_adb?"active":"disabled");
+    sprintf(opt_adb, LABEL_TOGGLE_ADB " %s", boot_with_adb?"active":"disabled");
     items[TOGGLE_ADB].title = opt_adb;
 
     ret = get_menu_selection(title_headers, TABS, items, 1, 0);
@@ -309,13 +309,13 @@ int show_config_bootmode(void) {
     mode = get_default_bootmode();
 
     for(i = 0; i < LAST_MODE; ++i) {
-      sprintf(options[i], "   [%s]", str_mode(i));
+      sprintf(options[i], "[%s]", str_mode(i));
       if(mode == i)
         options[i][2] = '*';
       menu_opts[i] = buildMenuItem(MENUITEM_SMALL, options[i], NULL);
     }
 
-    menu_opts[LAST_MODE] = buildMenuItem(MENUITEM_SMALL, "   --Go Back.", NULL);
+    menu_opts[LAST_MODE] = buildMenuItem(MENUITEM_SMALL, "<--Go Back", NULL);
     menu_opts[LAST_MODE+1] = buildMenuItem(MENUITEM_NULL, NULL, NULL);
 
     ret = get_menu_selection(title_headers, TABS, menu_opts, 1, mode);
@@ -376,19 +376,19 @@ int show_menu_system(void) {
   char** title_headers = prepend_title(headers);
 
   struct UiMenuItem items[] = {
-    {MENUITEM_SMALL, "  +Overclock -->", NULL},
-    {MENUITEM_SMALL, "  [UnRooting]", NULL},
-    {MENUITEM_SMALL, "  [Uninstall BootMenu]", NULL},
-    {MENUITEM_SMALL, "  --Go Back.", NULL},
+    {MENUITEM_SMALL, "Overclock", NULL},
+    {MENUITEM_SMALL, "UnRooting", NULL},
+    {MENUITEM_SMALL, "Uninstall BootMenu", NULL},
+    {MENUITEM_SMALL, "<--Go Back", NULL},
     {MENUITEM_NULL, NULL, NULL},
   };
 
   for (;;) {
 
     if ((stat("/system/app/Superuser.apk", &buf) < 0) && (stat("/system/app/superuser.apk", &buf) < 0))
-      items[1].title = "  [Rooting]";
+      items[1].title = "Rooting";
     else
-      items[1].title = "  [UnRooting]";
+      items[1].title = "UnRooting";
 
     struct UiMenuResult ret = get_menu_selection(title_headers, TABS, items, 1, select);
 
@@ -451,16 +451,16 @@ int show_menu_tools(void) {
   char** title_headers = prepend_title(headers);
 
   struct UiMenuItem items[] = {
-    {MENUITEM_SMALL, "  [ADB Daemon]", NULL},
+    {MENUITEM_SMALL, "ADB Daemon", NULL},
     {MENUITEM_SMALL, "", NULL},
-    {MENUITEM_SMALL, "  [Share SD Card]", NULL},
-    {MENUITEM_SMALL, "  [Share Drivers]", NULL},
-    {MENUITEM_SMALL, "  [Share system]", NULL},
-    {MENUITEM_SMALL, "  [Share data]", NULL},
-    {MENUITEM_SMALL, "  [Share MMC - Dangerous!]", NULL},
+    {MENUITEM_SMALL, "Share SD Card", NULL},
+    {MENUITEM_SMALL, "Share Drivers", NULL},
+    {MENUITEM_SMALL, "Share system", NULL},
+    {MENUITEM_SMALL, "Share data", NULL},
+    {MENUITEM_SMALL, "Share MMC - Dangerous!", NULL},
     {MENUITEM_SMALL, "", NULL},
-    {MENUITEM_SMALL, "  [Stop USB Share]", NULL},
-    {MENUITEM_SMALL, "  --Go Back.", NULL},
+    {MENUITEM_SMALL, "Stop USB Share", NULL},
+    {MENUITEM_SMALL, "<--Go Back", NULL},
     {MENUITEM_NULL, NULL, NULL},
   };
 
@@ -551,12 +551,12 @@ int show_menu_recovery(void) {
   char** title_headers = prepend_title(headers);
 
   struct UiMenuItem items[] = {
-    {MENUITEM_SMALL, "  [Custom Recovery]", NULL},
+    {MENUITEM_SMALL, "Custom Recovery", NULL},
 #ifdef USE_STABLE_RECOVERY
-    {MENUITEM_SMALL, "  [Stable Recovery]", NULL},
+    {MENUITEM_SMALL, "Stable Recovery", NULL},
 #endif
-    {MENUITEM_SMALL, "  [Stock Recovery]", NULL},
-    {MENUITEM_SMALL, "  --Go Back.", NULL},
+    {MENUITEM_SMALL, "Stock Recovery", NULL},
+    {MENUITEM_SMALL, "<--Go Back", NULL},
     {MENUITEM_NULL, NULL, NULL},
   };
 

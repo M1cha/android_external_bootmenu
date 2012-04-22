@@ -142,8 +142,8 @@ menu_overclock_status(int intl_value) {
   }
 
   char* items[2][2] =  {
-                         { "  *[Disable]", "   [Disable]" },
-                         { "  *[Enable]", "   [Enable]" },
+                         { "*[Disable]", " [Disable]" },
+                         { "*[Enable]", " [Enable]" },
                        };
 
   int mode = intl_value;
@@ -159,7 +159,7 @@ menu_overclock_status(int intl_value) {
         options[i] = buildMenuItem(MENUITEM_SMALL, items[i][1], NULL);
     }
 
-    options[2] = buildMenuItem(MENUITEM_SMALL, "   --Go Back.", NULL);
+    options[2] = buildMenuItem(MENUITEM_SMALL, "<--Go Back", NULL);
     options[3] = buildMenuItem(MENUITEM_NULL, NULL, NULL);
 
     struct UiMenuResult ret = get_menu_selection(title_headers, TABS, options, 1, mode);
@@ -182,11 +182,11 @@ menu_overclock_status(int intl_value) {
 }
 
 #if STOCK_VERSION
-# define MENU_SYSTEM " System -->"
-# define MENU_OVERCLOCK " Overclock -->"
+# define MENU_SYSTEM "System"
+# define MENU_OVERCLOCK "Overclock"
 #else
 # define MENU_SYSTEM ""
-# define MENU_OVERCLOCK " CPU settings -->"
+# define MENU_OVERCLOCK "CPU settings"
 #endif
 
 int
@@ -212,13 +212,13 @@ menu_overclock_scaling(void) {
   }
 
   char* items[7][2] = {
-    { "  *[Conservative]", "   [Conservative]" },
-    { "  *[Interactive]",  "   [Interactive]" },
-    { "  *[Ondemand]",     "   [Ondemand]" },
-    { "  *[Performance]",  "   [Performance]" },
-    { "  *[Powersave]",    "   [Powersave]" },
-    { "  *[Smartass]",     "   [Smartass]" },
-    { "  *[Userspace]",    "   [Userspace]" },
+    { "*[Conservative]", " [Conservative]" },
+    { "*[Interactive]",  " [Interactive]" },
+    { "*[Ondemand]",     " [Ondemand]" },
+    { "*[Performance]",  " [Performance]" },
+    { "*[Powersave]",    " [Powersave]" },
+    { "*[Smartass]",     " [Smartass]" },
+    { "*[Userspace]",    " [Userspace]" },
   };
 
   for (;;) {
@@ -233,7 +233,7 @@ menu_overclock_scaling(void) {
       else
         options[i] = buildMenuItem(MENUITEM_SMALL, items[i][1], NULL);
     }
-    options[7] = buildMenuItem(MENUITEM_SMALL, "   --Go Back.", NULL);
+    options[7] = buildMenuItem(MENUITEM_SMALL, "<--Go Back", NULL);
     options[8] = buildMenuItem(MENUITEM_NULL, NULL, NULL);
 
     struct UiMenuResult ret = get_menu_selection(title_headers, TABS, options, 1, mode);
@@ -304,10 +304,10 @@ menu_set_value(char* name, int intl_value, int min_value, int max_value, int ste
 
   struct UiMenuItem items[6];
     items[0] = buildMenuItem(MENUITEM_SMALL, (char*)malloc(sizeof(char)*64), NULL);
-    items[1] = buildMenuItem(MENUITEM_SMALL, "  ----------------------", NULL);
+    items[1] = buildMenuItem(MENUITEM_SMALL, "----------------------", NULL);
     items[2] = buildMenuItem(MENUITEM_SMALL, (char*)malloc(sizeof(char)*64), NULL);
     items[3] = buildMenuItem(MENUITEM_SMALL, (char*)malloc(sizeof(char)*64), NULL);
-    items[4] = buildMenuItem(MENUITEM_SMALL, "  --Go Back", NULL);
+    items[4] = buildMenuItem(MENUITEM_SMALL, "<--Go Back", NULL);
     items[5] = buildMenuItem(MENUITEM_NULL, NULL, NULL);
 
   int value = intl_value;
@@ -316,9 +316,9 @@ menu_set_value(char* name, int intl_value, int min_value, int max_value, int ste
     if (value < min_value) value = min_value;
     if (value > max_value) value = max_value;
 
-    sprintf(items[0].title, "  %s: [%d]", name, value);
-    sprintf(items[2].title, "  [+%d %s]", step, name);
-    sprintf(items[3].title, "  [-%d %s]", step, name);
+    sprintf(items[0].title, "%s: [%d]", name, value);
+    sprintf(items[2].title, "[+%d %s]", step, name);
+    sprintf(items[3].title, "[-%d %s]", step, name);
 
     struct UiMenuResult ret = get_menu_selection(title_headers, TABS, items, 1, select);
 
@@ -413,66 +413,66 @@ show_menu_overclock(void) {
     items[23] = buildMenuItem(MENUITEM_SMALL, (char*)malloc(sizeof(char)*64), NULL);
     items[24] = buildMenuItem(MENUITEM_SMALL, (char*)malloc(sizeof(char)*64), NULL);
     #define OC_MALLOC_LAST 24
-    items[25] = buildMenuItem(MENUITEM_SMALL, "  [Set defaults(*req reboot/don't save!!)]", NULL);
-    items[26] = buildMenuItem(MENUITEM_SMALL, "  [Save]", NULL);
-    items[27] = buildMenuItem(MENUITEM_SMALL, "  --Go Back", NULL);
+    items[25] = buildMenuItem(MENUITEM_SMALL, "Set defaults(*req reboot/don't save!!)", NULL);
+    items[26] = buildMenuItem(MENUITEM_SMALL, "Save", NULL);
+    items[27] = buildMenuItem(MENUITEM_SMALL, "<--Go Back", NULL);
     items[28] = buildMenuItem(MENUITEM_NULL, NULL, NULL);
 
   for (;;) {
 
     switch (get_overclock_value("enable")) {
-      case 0: items[0].title = "  +Status: [Disable] -->"; break;
-      case 1: items[0].title = "  +Status: [Enable] -->"; break;
+      case 0: items[0].title = "+Status: [Disable]"; break;
+      case 1: items[0].title = "+Status: [Enable]"; break;
 
-      default: items[0].title = "  +Status: [Unknown] -->"; break;
+      default: items[0].title = "+Status: [Unknown]"; break;
     }
 
     switch (get_overclock_value("load_all")) {
-      case 0: items[1].title = "  +Load all modules: [Disable] -->"; break;
-      case 1: items[1].title = "  +Load all modules: [Enable] -->"; break;
+      case 0: items[1].title = "+Load all modules: [Disable]"; break;
+      case 1: items[1].title = "+Load all modules: [Enable]"; break;
 
-      default: items[1].title = "  +Load all modules: [Unknown] -->"; break;
+      default: items[1].title = "+Load all modules: [Unknown]"; break;
     }
 
     switch (get_overclock_value("scaling")) {
-      case 0: items[2].title = "  +Scaling: [Conservative] -->"; break;
-      case 1: items[2].title = "  +Scaling: [Interactive] -->"; break;
-      case 2: items[2].title = "  +Scaling: [Ondemand] -->"; break;
-      case 3: items[2].title = "  +Scaling: [Performance] -->"; break;
-      case 4: items[2].title = "  +Scaling: [Powersave] -->"; break;
-      case 5: items[2].title = "  +Scaling: [Smartass] -->"; break;
-      case 6: items[2].title = "  +Scaling: [Userspace] -->"; break;
+      case 0: items[2].title = "+Scaling: [Conservative]"; break;
+      case 1: items[2].title = "+Scaling: [Interactive]"; break;
+      case 2: items[2].title = "+Scaling: [Ondemand]"; break;
+      case 3: items[2].title = "+Scaling: [Performance]"; break;
+      case 4: items[2].title = "+Scaling: [Powersave]"; break;
+      case 5: items[2].title = "+Scaling: [Smartass]"; break;
+      case 6: items[2].title = "+Scaling: [Userspace]"; break;
 
-      default: items[2].title = "  +Scaling: [Unknown] -->"; break;
+      default: items[2].title = " Scaling: [Unknown]"; break;
     }
     
-    sprintf(items[3].title, "  +Clk1: [%d] -->", get_overclock_value("clk1"));
-    sprintf(items[4].title, "  +Clk2: [%d] -->", get_overclock_value("clk2"));
-    sprintf(items[5].title, "  +Clk3: [%d] -->", get_overclock_value("clk3"));
+    sprintf(items[3].title, "+Clk1: [%d]", get_overclock_value("clk1"));
+    sprintf(items[4].title, "+Clk2: [%d]", get_overclock_value("clk2"));
+    sprintf(items[5].title, "+Clk3: [%d]", get_overclock_value("clk3"));
 #ifdef USE_4_CLOCK_LEVELS
-    sprintf(items[6].title, "  +Clk4: [%d] --> (*req 2.3.3 kernel)", get_overclock_value("clk4"));
-    sprintf(items[10].title, "  +Vsel4: [%d] --> (*req 2.3.3 kernel)", get_overclock_value("vsel4"));
+    sprintf(items[6].title, "+Clk4: [%d] (*req 2.3.3 kernel)", get_overclock_value("clk4"));
+    sprintf(items[10].title, "+Vsel4: [%d] (*req 2.3.3 kernel)", get_overclock_value("vsel4"));
 #else
     strcpy(items[6].title, "  ----------------------");
     strcpy(items[10].title, "  ----------------------");
 #endif
-    sprintf(items[7].title, "  +Vsel1: [%d] -->", get_overclock_value("vsel1"));
-    sprintf(items[8].title, "  +Vsel2: [%d] -->", get_overclock_value("vsel2"));
-    sprintf(items[9].title, "  +Vsel3: [%d] -->", get_overclock_value("vsel3"));
-    sprintf(items[11].title, "  +con_up_threshold: [%d] -->", get_overclock_value("con_up_threshold"));
-    sprintf(items[12].title, "  +con_down_threshold: [%d] -->", get_overclock_value("con_down_threshold"));
-    sprintf(items[13].title, "  +con_freq_step: [%d] -->", get_overclock_value("con_freq_step"));
-    sprintf(items[14].title, "  +con_sampling_rate: [%d] -->", get_overclock_value("con_sampling_rate"));
-    sprintf(items[15].title, "  +int_min_sample_rate: [%d] -->", get_overclock_value("int_min_sample_rate"));
-    sprintf(items[16].title, "  +ond_up_threshold: [%d] -->", get_overclock_value("ond_up_threshold"));
-    sprintf(items[17].title, "  +ond_sampling_rate: [%d] -->", get_overclock_value("ond_sampling_rate"));
-    sprintf(items[18].title, "  +smt_min_cpu_load: [%d] -->", get_overclock_value("smt_min_cpu_load"));
-    sprintf(items[19].title, "  +smt_max_cpu_load: [%d] -->", get_overclock_value("smt_max_cpu_load"));
-    sprintf(items[20].title, "  +smt_awake_min_freq: [%d] -->", get_overclock_value("smt_awake_min_freq"));
-    sprintf(items[21].title, "  +smt_sleep_max_freq: [%d] -->", get_overclock_value("smt_sleep_max_freq"));
-    sprintf(items[22].title, "  +smt_up_min_freq: [%d] -->", get_overclock_value("smt_up_min_freq"));
-    sprintf(items[23].title, "  +smt_wakeup_freq: [%d] -->", get_overclock_value("smt_wakeup_freq"));
-    sprintf(items[24].title, "  +smt_ramp_up_step: [%d] -->", get_overclock_value("smt_ramp_up_step"));
+    sprintf(items[7].title, "+Vsel1: [%d]", get_overclock_value("vsel1"));
+    sprintf(items[8].title, "+Vsel2: [%d]", get_overclock_value("vsel2"));
+    sprintf(items[9].title, "+Vsel3: [%d]", get_overclock_value("vsel3"));
+    sprintf(items[11].title, "+con_up_threshold: [%d", get_overclock_value("con_up_threshold"));
+    sprintf(items[12].title, "+con_down_threshold: [%d]", get_overclock_value("con_down_threshold"));
+    sprintf(items[13].title, "+con_freq_step: [%d]", get_overclock_value("con_freq_step"));
+    sprintf(items[14].title, "+con_sampling_rate: [%d]", get_overclock_value("con_sampling_rate"));
+    sprintf(items[15].title, "+int_min_sample_rate: [%d]", get_overclock_value("int_min_sample_rate"));
+    sprintf(items[16].title, "+ond_up_threshold: [%d]", get_overclock_value("ond_up_threshold"));
+    sprintf(items[17].title, "+ond_sampling_rate: [%d]", get_overclock_value("ond_sampling_rate"));
+    sprintf(items[18].title, "+smt_min_cpu_load: [%d]", get_overclock_value("smt_min_cpu_load"));
+    sprintf(items[19].title, "+smt_max_cpu_load: [%d]", get_overclock_value("smt_max_cpu_load"));
+    sprintf(items[20].title, "+smt_awake_min_freq: [%d]", get_overclock_value("smt_awake_min_freq"));
+    sprintf(items[21].title, "+smt_sleep_max_freq: [%d]", get_overclock_value("smt_sleep_max_freq"));
+    sprintf(items[22].title, "+smt_up_min_freq: [%d]", get_overclock_value("smt_up_min_freq"));
+    sprintf(items[23].title, "+smt_wakeup_freq: [%d]", get_overclock_value("smt_wakeup_freq"));
+    sprintf(items[24].title, "+smt_ramp_up_step: [%d]", get_overclock_value("smt_ramp_up_step"));
 
     struct UiMenuResult ret = get_menu_selection(title_headers, TABS, items, 1, select);
 
