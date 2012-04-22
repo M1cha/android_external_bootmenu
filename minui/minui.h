@@ -23,6 +23,13 @@
 typedef void* gr_surface;
 typedef unsigned short gr_pixel;
 
+struct UiColor {
+	unsigned char r;
+	unsigned char g;
+	unsigned char b;
+	unsigned char a;
+};
+
 int gr_init(void);
 void gr_exit(void);
 
@@ -33,6 +40,8 @@ void gr_flip(void);
 void gr_fb_blank(bool blank);
 
 void gr_color(unsigned char r, unsigned char g, unsigned char b, unsigned char a);
+void gr_set_uicolor(struct UiColor c);
+struct UiColor gr_make_uicolor(unsigned char r, unsigned char g, unsigned char b, unsigned char a);
 void gr_fill(int x, int y, int w, int h);
 void gr_drawLine(int ax, int ay, int bx, int by, int width);
 void gr_drawRect(int ax, int ay, int bx, int by, int width);
@@ -93,7 +102,6 @@ struct UiFont {
   void * gr_fontmem;
   unsigned char rundata[];
 };
-
 
 #define FONT_NORMAL 0
 #define FONT_BIG 1

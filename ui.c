@@ -113,6 +113,12 @@ static int key_queue_len = 0;
 static volatile char key_pressed[KEY_MAX + 1];
 static int evt_enabled = 0;
 
+static int pointerx_start = -1;
+static int pointery_start = -1;
+static struct timeval pointer_timeval_last;
+static int pointerx = -1;
+static int pointery = -1;
+
 // Clear the screen and draw the currently selected background icon (if any).
 // Should only be called with gUpdateMutex locked.
 static void draw_background_locked(gr_surface icon)
@@ -177,12 +183,72 @@ static void draw_menuitem_selection(int top, int height) {
   gr_fill(square_inner_left, top, square_inner_right, top+height);
 }
 
+static int get_menuitem_height(int item) {
+	switch(menu[item].type) {
+		case MENUITEM_SMALL:
+			return 80;
+			break;
+		case MENUITEM_MINUI_STANDARD:
+			return 18;
+			break;
+		case MENUITEM_FULL:
+			return 100;
+			break;
+	}
+	return 0;
+}
+
 static int draw_menu_item(int top, int item) {
-  int height=0;
+  int height=get_menuitem_height(item);
+  struct UiColor color_text;
+  struct UiColor color_background;
   switch(menu[item].type) {
     
     case MENUITEM_SMALL:
-      height=80;
+    	color_text = gr_make_uicolor(255, 255, 255, 255);
+    	color_background = gr_make_uicolor(0, 0, 0, 255);
+
+		if(menu_sel==item) {
+			color_text = gr_make_uicolor(0, 0, 0, 255);
+			color_background = gr_make_uicolor(255, 255, 255, 255);
+			draw_menuitem_selection(top,height);
+		}
+
+		if(ui_inside_menuitem(item, pointerx_start, pointery_start)==1 && ui_inside_menuitem(item, pointerx, pointery)==1) {
+			color_text = gr_make_uicolor(0, 0, 0, 255);
+			color_background = gr_make_uicolor(255, 183, 0, 255);
+		}
+
+		// draw background
+		gr_set_uicolor(color_background);
+		draw_menuitem_selection(top,height);
+
+		// draw text
+		gr_setfont(FONT_BIG);
+		gr_set_uicolor(color_text);
+		gr_text_cut(square_inner_left, top+height-height/2+gr_getfont_cheight()/2-gr_getfont_cheightfix(), menu[item].title, square_inner_right,top+height);
+
+		// draw bottom_line
+		gr_color(164,164,164,255);
+		gr_drawLine(square_inner_left, top+height, square_inner_right, top+height, 1);
+    break;
+    
+    case MENUITEM_MINUI_STANDARD:
+      
+      // draw selection 
+      if(menu_sel==item) {
+		gr_color(64, 96, 255, 255);
+		draw_menuitem_selection(top,height);
+		gr_color(0, 0, 0, 255);
+      }
+      else {
+    	  gr_color(64, 96, 255, 255);
+      }
+      gr_setfont(FONT_NORMAL);
+      gr_text_cut(square_inner_left, top+height-height/2+gr_getfont_cheight()/2-gr_getfont_cheightfix(), menu[item].title, square_inner_right,top+height);
+    break;
+    
+    case MENUITEM_FULL:
       
       // draw selection 
       if(menu_sel==item) {
@@ -191,41 +257,7 @@ static int draw_menu_item(int top, int item) {
 		gr_color(0, 0, 0, 255);
       }
       else {
-    	gr_color(255, 255, 255, 255);
-      }
-      gr_setfont(FONT_BIG);
-      gr_text_cut(square_inner_left, top+height-height/2+gr_getfont_cheight()/2-gr_getfont_cheightfix(), menu[item].title, square_inner_right,top+height);
-      gr_color(164,164,164,255);
-      gr_drawLine(square_inner_left, top+height, square_inner_right, top+height, 1);
-    break;
-    
-    case MENUITEM_MINUI_STANDARD:
-      height=18;
-      
-      // draw selection 
-      if(menu_sel==item) {
-	gr_color(64, 96, 255, 255);
-	draw_menuitem_selection(top,height);
-	gr_color(0, 0, 0, 255);
-      }
-      else {
-	gr_color(64, 96, 255, 255);
-      }
-      gr_setfont(FONT_NORMAL);
-      gr_text_cut(square_inner_left, top+height-height/2+gr_getfont_cheight()/2-gr_getfont_cheightfix(), menu[item].title, square_inner_right,top+height);
-    break;
-    
-    case MENUITEM_FULL:
-      height=100;
-      
-      // draw selection 
-      if(menu_sel==item) {
-	gr_color(255, 255, 255, 255);
-	draw_menuitem_selection(top,height);
-	gr_color(0, 0, 0, 255);
-      }
-      else {
-	gr_color(255, 255, 255, 255);
+    	  gr_color(255, 255, 255, 255);
       }
       gr_setfont(FONT_NORMAL);
       
@@ -236,9 +268,9 @@ static int draw_menu_item(int top, int item) {
       gr_text_cut(square_inner_left, combotop+height, menu[item].title, -1,-1);
       
       /*if(menu[item].description!=NULL) {
-	comboheight*=2;
-	//gr_setfont(FONT_NORMAL);
-	//gr_text_cut(square_inner_left, top+height-height/2+gr_getfont_cheight()/2-gr_getfont_cheightfix(), menu[item].description, square_inner_right,top+height);
+		comboheight*=2;
+		//gr_setfont(FONT_NORMAL);
+		//gr_text_cut(square_inner_left, top+height-height/2+gr_getfont_cheight()/2-gr_getfont_cheightfix(), menu[item].description, square_inner_right,top+height);
       }*/
       
       
@@ -255,12 +287,6 @@ static int draw_menu_item(int top, int item) {
   return top+height;
 }
 
-/*static void draw_header_line(int row, const char* t) {
-  if (t[0] != '\0') {
-    gr_text(square_inner_left-3, 20+(row+1)*gr_getfont_cheight()-1, t);
-  }
-}*/
-
 static void draw_log_line(int row, const char* t) {
   if (t[0] != '\0') {
     gr_text(square_inner_left-3, square_inner_top+(square_inner_bottom-square_inner_top)+(row+1)*gr_getfont_cheight()-1, t);
@@ -275,91 +301,75 @@ static void draw_screen_locked(void)
     draw_background_locked(gCurrentIcon);
     draw_progress_locked();
     int marginTop = STATUSBAR_HEIGHT+TABCONTROL_HEIGHT;
-    
-    // draw transparent overlay
-    /*if(show_text) {
-      gr_color(0, 0, 0, 160);
-      gr_fill(0, 0, gr_fb_width(), gr_fb_height());
-    }*/
-    
-    // draw headers
-    gr_setfont(FONT_NORMAL);
-    /*gr_color(255, 255, 255, 255);
-    for (i=0; i < menu_header_lines; ++i) {
-      draw_header_line(i, menu_headers[i]);
-    }*/
    
     if (show_text) {
-        i = 0;
-        if (show_menu) {
-	    	// draw menu
-	    	gr_setfont(FONT_BIG);
-	    	
-            for (; i < menu_items; ++i) {
-            	//fprintf(stdout, "marginTop=%d\n", marginTop);fflush(stdout);
-                if (i == menu_sel) {
-		    		// draw item
-                    gr_color(0, 0, 0, 255);
-                    marginTop = draw_menu_item(marginTop, i);
-                    
-                } else {
-		    		gr_color(255, 255, 255, 255);
-                    marginTop = draw_menu_item(marginTop, i);
-                }
-            }
-            ++i;
-        }
+		i = 0;
+		if (show_menu) {
+			// draw menu
+			gr_setfont(FONT_BIG);
 
-        
+			for (; i < menu_items; ++i) {
+				if (i == menu_sel) {
+					// draw item
+					gr_color(0, 0, 0, 255);
+					marginTop = draw_menu_item(marginTop, i);
 
-	// draw log
-	gr_setfont(FONT_NORMAL);
-	gr_color(255, 255, 0, 255);
+				} else {
+					gr_color(255, 255, 255, 255);
+					marginTop = draw_menu_item(marginTop, i);
+				}
+			}
+			++i;
+		}
+
+		// draw log
+		gr_setfont(FONT_NORMAL);
+		gr_color(255, 255, 0, 255);
         for (i=0; i < text_rows; ++i) {
             draw_log_line(i, text[(i+text_top) % text_rows]);
         }
         
         // draw statusbar
         int statusbar_right = 10;
-	gr_color(0, 0, 0, 160);
-	gr_fill(0, 0, gr_fb_width(), STATUSBAR_HEIGHT);
-	
-	// draw clock
-	char time[50];
-	ui_get_time(time);
-	gr_color(0, 170, 255, 255);
-	gr_text(gr_fb_width()-5*gr_getfont_cwidth()-statusbar_right,gr_getfont_cheight()/2+STATUSBAR_HEIGHT/2-gr_getfont_cheightfix(),time);
-	statusbar_right+=5*gr_getfont_cwidth();
+		gr_color(0, 0, 0, 160);
+		gr_fill(0, 0, gr_fb_width(), STATUSBAR_HEIGHT);
+
+		// draw clock
+		char time[50];
+		ui_get_time(time);
+		gr_color(0, 170, 255, 255);
+		gr_text(gr_fb_width()-5*gr_getfont_cwidth()-statusbar_right,gr_getfont_cheight()/2+STATUSBAR_HEIGHT/2-gr_getfont_cheightfix(),time);
+		statusbar_right+=5*gr_getfont_cwidth();
 	
 #ifdef BOARD_WITH_CPCAP
-	// draw battery
-	int level = battery_level();
-	char level_s[5];
-	sprintf(level_s, "%d%%", level);
-	
-	// count size of string */
-	int level_s_size;
-	for(level_s_size=0; level_s[level_s_size]; ++level_s_size) {}
-	
-	gr_text(gr_fb_width()-level_s_size*gr_getfont_cwidth()-statusbar_right,gr_getfont_cheight()/2+STATUSBAR_HEIGHT/2-gr_getfont_cheightfix(),level_s);
+		// draw battery
+		int level = battery_level();
+		char level_s[5];
+		sprintf(level_s, "%d%%", level);
+
+		// count size of string */
+		int level_s_size;
+		for(level_s_size=0; level_s[level_s_size]; ++level_s_size) {}
+
+		gr_text(gr_fb_width()-level_s_size*gr_getfont_cwidth()-statusbar_right,gr_getfont_cheight()/2+STATUSBAR_HEIGHT/2-gr_getfont_cheightfix(),level_s);
 #endif
 	
-	// draw tabcontrol
-	int tableft=0;
-	gr_color(0, 0, 0, 255);
-	gr_fill(0, STATUSBAR_HEIGHT, gr_fb_width(), STATUSBAR_HEIGHT+TABCONTROL_HEIGHT);
-	if(tabitems!=NULL) {
-	  for(i=0; tabitems[i]; ++i) {
-	      int active=0;
-	      if(i==activeTab)active=1;
-	      tableft = drawTab(tableft, tabitems[i], active);
-	  }
-	}
+		// draw tabcontrol
+		int tableft=0;
+		gr_color(0, 0, 0, 255);
+		gr_fill(0, STATUSBAR_HEIGHT, gr_fb_width(), STATUSBAR_HEIGHT+TABCONTROL_HEIGHT);
+		if(tabitems!=NULL) {
+		  for(i=0; tabitems[i]; ++i) {
+			  int active=0;
+			  if(i==activeTab)active=1;
+			  tableft = drawTab(tableft, tabitems[i], active);
+		  }
+		}
 	
-	// draw divider-line
-	gr_color(0, 170, 255, 255);
-	gr_drawLine(0, STATUSBAR_HEIGHT+TABCONTROL_HEIGHT, gr_fb_width(), STATUSBAR_HEIGHT+TABCONTROL_HEIGHT, 4);
-  }
+		// draw divider-line
+		gr_color(0, 170, 255, 255);
+		gr_drawLine(0, STATUSBAR_HEIGHT+TABCONTROL_HEIGHT, gr_fb_width(), STATUSBAR_HEIGHT+TABCONTROL_HEIGHT, 4);
+    }
 }
 
 static int drawTab(int left, const char* s, int active)
@@ -841,7 +851,7 @@ struct ui_input_event ui_wait_input()
     }
 
     key = key_queue[0];
-    memcpy(&key_queue[0], &key_queue[1], sizeof(int) * --key_queue_len);
+    memcpy(&key_queue[0], &key_queue[1], sizeof(struct ui_input_event) * --key_queue_len);
     pthread_mutex_unlock(&key_queue_mutex);
 
     return key;
@@ -906,4 +916,84 @@ int ui_setTab_next() {
 struct UiMenuItem buildMenuItem(int type, char *title, char *description) {
   struct UiMenuItem item = {type, title, description};
   return item;
+}
+
+int ui_inside_menuitem(int item, int x, int y) {
+	int i;
+	int top = STATUSBAR_HEIGHT+TABCONTROL_HEIGHT;
+
+	// get top-position
+	for(i=0; i<item; ++i) {
+		top+=get_menuitem_height(i);
+	}
+
+	// the check itself
+	if(x>=square_inner_left && x<=square_inner_right && y>=top && y<top+get_menuitem_height(item)) {
+		return 1;
+	}
+	return 0;
+}
+/* Return 1 if the difference is negative, otherwise 0.  */
+int timeval_subtract(struct timeval *result, struct timeval *t2, struct timeval *t1)
+{
+    long int diff = (t2->tv_usec + 1000000 * t2->tv_sec) - (t1->tv_usec + 1000000 * t1->tv_sec);
+    result->tv_sec = diff / 1000000;
+    result->tv_usec = diff % 1000000;
+
+    return (diff<0);
+}
+
+struct ui_touchresult ui_handle_touch(struct ui_input_event uev) {
+	int i;
+	int clickedItem=-1;
+	struct ui_touchresult ret = {TOUCHRESULT_TYPE_EMPTY,-1};
+	int redraw;
+	struct timeval tvNow, tvDiff;
+
+	switch(uev.utype) {
+		case UINPUTEVENT_TYPE_TOUCH_START:
+			pointerx_start = pointerx = uev.posx;
+			pointery_start = pointery = uev.posy;
+			gettimeofday(&pointer_timeval_last, NULL);
+			ui_update_screen();
+		break;
+
+		case UINPUTEVENT_TYPE_TOUCH_DRAG:
+			/*gettimeofday(&tvNow, NULL);
+			timeval_subtract(&tvDiff, &tvNow, &pointer_timeval_last);
+
+			pointerx = uev.posx;
+			pointery = uev.posy;
+
+			if(tvDiff.tv_sec>=1) {
+				ui_update_screen();
+			}*/
+		break;
+
+		case UINPUTEVENT_TYPE_TOUCH_RELEASE:
+			gettimeofday(&tvNow, NULL);
+			timeval_subtract(&tvDiff, &tvNow, &pointer_timeval_last);
+
+			// check onclick for listitem
+			for(i=0; i<menu_items; ++i) {
+				if(ui_inside_menuitem(i, pointerx_start, pointery_start)==1 && ui_inside_menuitem(i, uev.posx, uev.posy)==1) {
+					ret.type = TOUCHRESULT_TYPE_ONCLICK_LIST;
+					ret.item = i;
+					break;
+				}
+			}
+
+			pointerx = -1;
+			pointerx = -1;
+			ui_update_screen();
+		break;
+	}
+
+	return ret;
+}
+
+void ui_update_screen() {
+	pthread_mutex_lock(&gUpdateMutex);
+	update_screen_locked();
+	pthread_mutex_unlock(&gUpdateMutex);
 }

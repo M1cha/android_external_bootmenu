@@ -296,6 +296,14 @@ void gr_color(unsigned char r, unsigned char g, unsigned char b, unsigned char a
     gl->color4xv(gl, color);
 }
 
+void gr_set_uicolor(struct UiColor c) {
+	gr_color(c.r, c.g, c.b, c.a);
+}
+struct UiColor gr_make_uicolor(unsigned char r, unsigned char g, unsigned char b, unsigned char a) {
+	struct UiColor c = {r, g, b, a};
+	return c;
+}
+
 int gr_measure(const char *s)
 {
     return FONTS[selectedFont].gr_font->cwidth * strlen(s);

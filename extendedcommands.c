@@ -309,9 +309,9 @@ int show_config_bootmode(void) {
     mode = get_default_bootmode();
 
     for(i = 0; i < LAST_MODE; ++i) {
-      sprintf(options[i], "[%s]", str_mode(i));
+      sprintf(options[i], " [%s]", str_mode(i));
       if(mode == i)
-        options[i][2] = '*';
+        options[i][0] = '*';
       menu_opts[i] = buildMenuItem(MENUITEM_SMALL, options[i], NULL);
     }
 

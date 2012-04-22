@@ -119,6 +119,7 @@ struct UiMenuResult get_menu_selection(char** headers, char** tabs, struct UiMen
   ui_start_menu(headers, tabs, items, initial_selection);
   int selected = initial_selection;
   struct UiMenuResult ret;
+  struct ui_touchresult tret;
   ret.result = -1;
   ret.type = -1;
 
@@ -177,7 +178,16 @@ struct UiMenuResult get_menu_selection(char** headers, char** tabs, struct UiMen
     	break;
 
     	case UINPUTEVENT_TYPE_TOUCH_START:
-    		fprintf(stdout, "Touch at %dx%d!\n", eventresult.posx, eventresult.posy);fflush(stdout);
+    	case UINPUTEVENT_TYPE_TOUCH_DRAG:
+    	case UINPUTEVENT_TYPE_TOUCH_RELEASE:
+    		tret = ui_handle_touch(eventresult);
+
+    		switch(tret.type) {
+    			case TOUCHRESULT_TYPE_ONCLICK_LIST:
+    				ret.result = tret.item;
+    				ret.type = RESULT_LIST;
+    			break;
+    		}
     	break;
     }
 

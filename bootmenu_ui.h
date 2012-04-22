@@ -35,6 +35,14 @@ struct ui_input_event {
 	int posy;
 };
 
+#define TOUCHRESULT_TYPE_EMPTY -1
+#define TOUCHRESULT_TYPE_ONCLICK_LIST 0
+#define TOUCHRESULT_TYPE_ONCLICK_TAB 1
+struct ui_touchresult {
+	int type;
+	int item;
+};
+
 // Called when recovery starts up.  Returns 0.
 extern int device_recovery_start();
 
@@ -100,5 +108,9 @@ void ui_get_time(char* result);
 static int drawTab(int left, const char* s, int active);
 void ui_set_activeTab(int i);
 int ui_setTab_next();
+int ui_inside_menuitem(int item, int x, int y);
+int timeval_subtract(struct timeval *result, struct timeval *t2, struct timeval *t1);
+struct ui_touchresult ui_handle_touch(struct ui_input_event uev);
+void ui_update_screen();
 
 #endif
