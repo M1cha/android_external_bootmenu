@@ -41,7 +41,7 @@
 static int SQUARE_WIDTH=5;
 static int SQUARE_TOP=100;
 static int SQUARE_RIGHT=20;
-static int SQUARE_BOTTOM=20;
+static int SQUARE_BOTTOM=0;
 static int SQUARE_LEFT=20;
 
 #define ROW_HEIGHT 100
@@ -117,6 +117,10 @@ static int pointerx_start = -1;
 static int pointery_start = -1;
 static int pointerx = -1;
 static int pointery = -1;
+static int menutop_diff = 0;
+static int pointer_start_insidemenu=0;
+static int enable_scrolling = 0;
+static int show_menu_selection=0;
 
 // Clear the screen and draw the currently selected background icon (if any).
 // Should only be called with gUpdateMutex locked.
@@ -207,13 +211,13 @@ static int draw_menu_item(int top, int item) {
     	color_text = gr_make_uicolor(255, 255, 255, 255);
     	color_background = gr_make_uicolor(0, 0, 0, 255);
 
-		if(menu_sel==item) {
+		if(show_menu_selection==1 && menu_sel==item) {
 			color_text = gr_make_uicolor(0, 0, 0, 255);
 			color_background = gr_make_uicolor(255, 255, 255, 255);
 			draw_menuitem_selection(top,height);
 		}
 
-		if(ui_inside_menuitem(item, pointerx_start, pointery_start)==1) {
+		if(ui_inside_menuitem(item, pointerx_start, pointery_start)==1 && enable_scrolling==0) {
 			color_text = gr_make_uicolor(0, 0, 0, 255);
 			if(ui_inside_menuitem(item, pointerx, pointery)==1) {
 				color_background = gr_make_uicolor(255, 183, 0, 255);
@@ -224,64 +228,49 @@ static int draw_menu_item(int top, int item) {
 		}
 
 		// draw background
-		gr_set_uicolor(color_background);
-		draw_menuitem_selection(top,height);
+		int bgtop = top;
+		int bgheight = height;
+		int cuttop = top+height;
+		int bgbottom = top+height;
+		int draw_bottom_line=1;
 
-		// draw text
-		gr_setfont(FONT_BIG);
-		gr_set_uicolor(color_text);
-		gr_text_cut(square_inner_left, top+height-height/2+gr_getfont_cheight()/2-gr_getfont_cheightfix(), menu[item].title, square_inner_right,top+height);
+		// don't draw if item is outside of list's viewport
+		if(bgtop+height>=square_inner_top && bgbottom<=square_inner_bottom+height) {
 
-		// draw bottom_line
-		gr_color(164,164,164,255);
-		gr_drawLine(square_inner_left, top+height, square_inner_right, top+height, 1);
+			// cut background at square's top side
+			if(bgtop<square_inner_top) {
+				bgheight-= square_inner_top-bgtop;
+				bgtop = square_inner_top;
+
+
+			}
+
+
+			// cut background and text at sqaure's bottom side
+			if(bgbottom>square_inner_bottom) {
+				bgheight-=bgbottom-square_inner_bottom;
+				bgbottom=square_inner_bottom;
+				draw_bottom_line=0;
+			}
+
+			// draw background
+			gr_set_uicolor(color_background);
+			draw_menuitem_selection(bgtop,bgheight);
+
+			// draw text
+			gr_setfont(FONT_BIG);
+			gr_set_uicolor(color_text);
+			gr_text_cut(square_inner_left, top+height-height/2+gr_getfont_cheight()/2-gr_getfont_cheightfix(), menu[item].title, square_inner_left, square_inner_right, square_inner_top, bgbottom);
+
+			// draw bottom_line
+			if(draw_bottom_line==1) {
+				gr_color(164,164,164,255);
+				gr_drawLine(square_inner_left, top+height-1, square_inner_right, top+height-1, 1);
+			}
+		}
+
     break;
     
-    case MENUITEM_MINUI_STANDARD:
-      
-      // draw selection 
-      if(menu_sel==item) {
-		gr_color(64, 96, 255, 255);
-		draw_menuitem_selection(top,height);
-		gr_color(0, 0, 0, 255);
-      }
-      else {
-    	  gr_color(64, 96, 255, 255);
-      }
-      gr_setfont(FONT_NORMAL);
-      gr_text_cut(square_inner_left, top+height-height/2+gr_getfont_cheight()/2-gr_getfont_cheightfix(), menu[item].title, square_inner_right,top+height);
-    break;
-    
-    case MENUITEM_FULL:
-      
-      // draw selection 
-      if(menu_sel==item) {
-		gr_color(255, 255, 255, 255);
-		draw_menuitem_selection(top,height);
-		gr_color(0, 0, 0, 255);
-      }
-      else {
-    	  gr_color(255, 255, 255, 255);
-      }
-      gr_setfont(FONT_NORMAL);
-      
-      int comboheight = gr_getfont_cheight()*2;
-      int combomiddle = top+height-height/2+gr_getfont_cheight()/2-gr_getfont_cheightfix();
-      int combotop = top+(combomiddle-top);
-      
-      gr_text_cut(square_inner_left, combotop+height, menu[item].title, -1,-1);
-      
-      /*if(menu[item].description!=NULL) {
-		comboheight*=2;
-		//gr_setfont(FONT_NORMAL);
-		//gr_text_cut(square_inner_left, top+height-height/2+gr_getfont_cheight()/2-gr_getfont_cheightfix(), menu[item].description, square_inner_right,top+height);
-      }*/
-      
-      
-      
-      gr_color(164,164,164,255);
-      gr_drawLine(square_inner_left, top+height, square_inner_right, top+height, 1);
-    break;
       
     case MENUITEM_NULL:
     default:
@@ -297,6 +286,10 @@ static void draw_log_line(int row, const char* t) {
   }
 }
 
+static int ui_get_menu_top() {
+	return STATUSBAR_HEIGHT+TABCONTROL_HEIGHT+menutop_diff;
+}
+
 // Redraw everything on the screen.  Does not flip pages.
 // Should only be called with gUpdateMutex locked.
 static void draw_screen_locked(void)
@@ -304,7 +297,7 @@ static void draw_screen_locked(void)
     int i;
     draw_background_locked(gCurrentIcon);
     draw_progress_locked();
-    int marginTop = STATUSBAR_HEIGHT+TABCONTROL_HEIGHT;
+    int marginTop = ui_get_menu_top();
 	
     if (show_text) {
 		i = 0;
@@ -411,7 +404,7 @@ static void recalcSquare()
 {
     square_inner_top = SQUARE_TOP+SQUARE_WIDTH-2;
     square_inner_right = gr_fb_width()-SQUARE_RIGHT-SQUARE_WIDTH;
-    square_inner_bottom = SQUARE_BOTTOM;
+    square_inner_bottom = gr_fb_height()-SQUARE_BOTTOM-SQUARE_WIDTH;
     square_inner_left = SQUARE_LEFT+SQUARE_WIDTH;
 }
 
@@ -784,15 +777,17 @@ void ui_start_menu(char** headers, char** tabs, struct UiMenuItem* items, int in
             strncpy(menu_headers[i], headers[i], text_cols-1);
             menu_headers[i][text_cols-1] = '\0';
         }
-	menu_header_lines = i;
+        menu_header_lines = i;
 
-	// count menuitems
+		// count menuitems
         for (i = 0; i < MAX_ROWS; ++i) {
-	    if (items[i].type == MENUITEM_NULL) break;
+        	if (items[i].type == MENUITEM_NULL) break;
         }
+
         menu_items = i;
         show_menu = 1;
         menu_sel = initial_selection;
+        menutop_diff=0;
     }
     pthread_mutex_unlock(&gUpdateMutex);
 }
@@ -927,7 +922,7 @@ struct UiMenuItem buildMenuItem(int type, char *title, char *description) {
 
 int ui_inside_menuitem(int item, int x, int y) {
 	int i;
-	int top = STATUSBAR_HEIGHT+TABCONTROL_HEIGHT;
+	int top = ui_get_menu_top();
 
 	// get top-position
 	for(i=0; i<item; ++i) {
@@ -941,6 +936,18 @@ int ui_inside_menuitem(int item, int x, int y) {
 	return 0;
 }
 
+/* Return 1 if the difference is negative, otherwise 0.  */
+int timeval_subtract(struct timeval *result, struct timeval *t2, struct timeval *t1)
+{
+    long int diff = (t2->tv_usec + 1000000 * t2->tv_sec) - (t1->tv_usec + 1000000 * t1->tv_sec);
+    result->tv_sec = diff / 1000000;
+    result->tv_usec = diff % 1000000;
+
+    return (diff<0);
+}
+
+static int menuToptmp = 0;
+static struct timeval tvTouchStart, tvNow, tvDiff;
 struct ui_touchresult ui_handle_touch(struct ui_input_event uev) {
 	int i;
 	int clickedItem=-1;
@@ -948,11 +955,37 @@ struct ui_touchresult ui_handle_touch(struct ui_input_event uev) {
 
 	switch(uev.utype) {
 		case UINPUTEVENT_TYPE_TOUCH_START:
+			// save start-time
+			gettimeofday(&tvTouchStart, NULL);
+
+			// check if touch was inside list
+			pointer_start_insidemenu=0;
+			if(uev.posx>=square_inner_left && uev.posx<=square_inner_right && uev.posy>=square_inner_top && uev.posy<=square_inner_bottom) {
+				pointer_start_insidemenu = 1;
+			}
+
 			pointerx_start = pointerx = uev.posx;
 			pointery_start = pointery = uev.posy;
+			menuToptmp = menutop_diff;
+			enable_scrolling=0;
 		break;
 
 		case UINPUTEVENT_TYPE_TOUCH_DRAG:
+
+			// calculate difference to start-time
+			gettimeofday(&tvNow, NULL);
+			timeval_subtract(&tvDiff, &tvNow, &tvTouchStart);
+
+			// enable scrolling on different conditions
+			if(pointer_start_insidemenu==1 && enable_scrolling!=1 && tvDiff.tv_sec==0 && tvDiff.tv_usec<=300000 && abs(uev.posy-pointery_start)>=30) {
+				enable_scrolling=1;
+			}
+
+			// scroll!! :D
+			if(enable_scrolling==1) {
+				menutop_diff=menuToptmp+uev.posy-pointery_start;
+			}
+
 			pointerx = uev.posx;
 			pointery = uev.posy;
 		break;
@@ -960,7 +993,7 @@ struct ui_touchresult ui_handle_touch(struct ui_input_event uev) {
 		case UINPUTEVENT_TYPE_TOUCH_RELEASE:
 			// check onclick for listitem
 			for(i=0; i<menu_items; ++i) {
-				if(ui_inside_menuitem(i, pointerx_start, pointery_start)==1 && ui_inside_menuitem(i, uev.posx, uev.posy)==1) {
+				if(ui_inside_menuitem(i, pointerx_start, pointery_start)==1 && ui_inside_menuitem(i, uev.posx, uev.posy)==1 && enable_scrolling==0) {
 					ret.type = TOUCHRESULT_TYPE_ONCLICK_LIST;
 					ret.item = i;
 					break;
@@ -969,8 +1002,13 @@ struct ui_touchresult ui_handle_touch(struct ui_input_event uev) {
 
 			pointerx_start = pointerx = -1;
 			pointery_start = pointery = -1;
+			enable_scrolling=0;
 		break;
 	}
 
 	return ret;
+}
+
+void enableMenuSelection(int i) {
+	show_menu_selection=i;
 }

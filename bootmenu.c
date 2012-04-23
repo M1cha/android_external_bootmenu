@@ -152,10 +152,12 @@ struct UiMenuResult get_menu_selection(char** headers, char** tabs, struct UiMen
 				  case HIGHLIGHT_UP:
 					--selected;
 					selected = ui_menu_select(selected);
+					enableMenuSelection(1);
 					break;
 				  case HIGHLIGHT_DOWN:
 					++selected;
 					selected = ui_menu_select(selected);
+					enableMenuSelection(1);
 					break;
 				  case SELECT_ITEM:
 					ret.result = selected;
@@ -180,6 +182,7 @@ struct UiMenuResult get_menu_selection(char** headers, char** tabs, struct UiMen
     	case UINPUTEVENT_TYPE_TOUCH_START:
     	case UINPUTEVENT_TYPE_TOUCH_DRAG:
     	case UINPUTEVENT_TYPE_TOUCH_RELEASE:
+    		enableMenuSelection(0);
     		tret = ui_handle_touch(eventresult);
 
     		switch(tret.type) {

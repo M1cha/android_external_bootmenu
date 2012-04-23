@@ -110,5 +110,6 @@ void ui_set_activeTab(int i);
 int ui_setTab_next();
 int ui_inside_menuitem(int item, int x, int y);
 struct ui_touchresult ui_handle_touch(struct ui_input_event uev);
+void enableMenuSelection(int i);
 
 #endif
