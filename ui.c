@@ -56,6 +56,7 @@ static int square_inner_right;
 static int square_inner_bottom;
 static int square_inner_left;
 
+#define REDRAWTHREAD_INDETERMINATE_FPS 60
 static pthread_mutex_t gUpdateMutex = PTHREAD_MUTEX_INITIALIZER;
 static gr_surface gBackgroundIcon[NUM_BACKGROUND_ICONS];
 static gr_surface gProgressBarEmpty;
@@ -260,7 +261,6 @@ static int draw_menu_item(int top, int item) {
 
 			}
 
-
 			// cut background and text at sqaure's bottom side
 			if(bgbottom>square_inner_bottom) {
 				bgheight-=bgbottom-square_inner_bottom;
@@ -319,6 +319,7 @@ static int ui_get_menu_height() {
 // Should only be called with gUpdateMutex locked.
 static void draw_screen_locked(void)
 {
+	if(show_menu!=1) return;
     int i;
     int marginTop = ui_get_menu_top();
     struct timeval bouncediff, tvNow;
@@ -624,8 +625,10 @@ static void *input_thread(void *cookie)
 static void *redraw_thread(void *cookie)
 {
     for (;;) {
-    	usleep(1000000 / 60);
+    	usleep(1000000 / REDRAWTHREAD_INDETERMINATE_FPS);
+    	pthread_mutex_lock(&gUpdateMutex);
     	update_screen_locked();
+    	pthread_mutex_unlock(&gUpdateMutex);
     }
     return NULL;
 }
@@ -870,7 +873,7 @@ int ui_menu_select(int sel) {
 void ui_end_menu() {
     int i;
     pthread_mutex_lock(&gUpdateMutex);
-    if (show_menu > 0 && text_rows > 0 && text_cols > 0) {
+    if (show_menu > 0) {
         show_menu = 0;
     }
     pthread_mutex_unlock(&gUpdateMutex);
@@ -941,7 +944,9 @@ void ui_get_time(char* result)
 
 void ui_set_activeTab(int i)
 {
+  pthread_mutex_lock(&gUpdateMutex);
   activeTab=i;
+  pthread_mutex_unlock(&gUpdateMutex);
 }
 
 int ui_get_activeTab()
@@ -951,7 +956,7 @@ int ui_get_activeTab()
 
 int ui_setTab_next() {
   int i;
-  
+  pthread_mutex_lock(&gUpdateMutex);
   // count tabs
   for(i=0; tabitems[i]; i++){}
   
@@ -962,7 +967,7 @@ int ui_setTab_next() {
   else {
     activeTab++;
   }
-  
+  pthread_mutex_unlock(&gUpdateMutex);
   return activeTab;
 }
 
@@ -1002,7 +1007,7 @@ struct ui_touchresult ui_handle_touch(struct ui_input_event uev) {
 	int clickedItem=-1;
 	struct ui_touchresult ret = {TOUCHRESULT_TYPE_EMPTY,-1};
 	struct timeval tvNow, tvDiff;
-
+	pthread_mutex_lock(&gUpdateMutex);
 	switch(uev.utype) {
 		case UINPUTEVENT_TYPE_TOUCH_START:
 
@@ -1077,10 +1082,12 @@ struct ui_touchresult ui_handle_touch(struct ui_input_event uev) {
 			enable_scrolling=0;
 		break;
 	}
-
+	pthread_mutex_unlock(&gUpdateMutex);
 	return ret;
 }
 
 void enableMenuSelection(int i) {
+	pthread_mutex_lock(&gUpdateMutex);
 	show_menu_selection=i;
+	pthread_mutex_unlock(&gUpdateMutex);
 }

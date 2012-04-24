@@ -46,7 +46,7 @@ void gr_fill(int x, int y, int w, int h);
 void gr_drawLine(int ax, int ay, int bx, int by, int width);
 void gr_drawRect(int ax, int ay, int bx, int by, int width);
 int gr_text(int x, int y, const char *s);
-int gr_text_cut(int x, int y, const char *s, int minx, int maxx, int miny, int maxy);
+int gr_text_cut(int _x, int _y, const char *s, int minx, int maxx, int miny, int maxy);
 int gr_measure(const char *s);
 void gr_font_size(int *x, int *y);
 
