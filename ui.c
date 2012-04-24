@@ -387,8 +387,7 @@ static void draw_screen_locked(void)
 		char time[50];
 		ui_get_time(time);
 		gr_color(0, 170, 255, 255);
-		gr_text(gr_fb_width()-5*gr_getfont_cwidth()-statusbar_right,gr_getfont_cheight()/2+STATUSBAR_HEIGHT/2-gr_getfont_cheightfix(),time);
-		statusbar_right+=5*gr_getfont_cwidth();
+		gr_text(gr_fb_width()/2-5*gr_getfont_cwidth()/2,gr_getfont_cheight()/2+STATUSBAR_HEIGHT/2-gr_getfont_cheightfix(),time);
 	
 #ifdef BOARD_WITH_CPCAP
 		// draw battery
@@ -1090,4 +1089,8 @@ void enableMenuSelection(int i) {
 	pthread_mutex_lock(&gUpdateMutex);
 	show_menu_selection=i;
 	pthread_mutex_unlock(&gUpdateMutex);
+}
+
+int is_menuSelection_enabled() {
+	return show_menu_selection;
 }

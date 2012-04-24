@@ -112,5 +112,6 @@ int ui_inside_menuitem(int item, int x, int y);
 int timeval_subtract(struct timeval *result, struct timeval *t2, struct timeval *t1);
 struct ui_touchresult ui_handle_touch(struct ui_input_event uev);
 void enableMenuSelection(int i);
+int is_menuSelection_enabled();
 
 #endif

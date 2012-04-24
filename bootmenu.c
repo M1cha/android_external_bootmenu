@@ -148,16 +148,21 @@ struct UiMenuResult get_menu_selection(char** headers, char** tabs, struct UiMen
     		action = device_handle_key(eventresult.code, visible);
 
     		if (action < 0) {
+    			if(action==HIGHLIGHT_UP || action==HIGHLIGHT_DOWN || action==SELECT_ITEM) {
+    				if(is_menuSelection_enabled()!=1) {
+    					enableMenuSelection(1);
+    					break;
+    				}
+    			}
+
 				switch (action) {
 				  case HIGHLIGHT_UP:
 					--selected;
 					selected = ui_menu_select(selected);
-					enableMenuSelection(1);
 					break;
 				  case HIGHLIGHT_DOWN:
 					++selected;
 					selected = ui_menu_select(selected);
-					enableMenuSelection(1);
 					break;
 				  case SELECT_ITEM:
 					ret.result = selected;
