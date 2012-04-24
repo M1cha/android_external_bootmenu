@@ -26,6 +26,7 @@
 #include <unistd.h>
 #include <sys/time.h>
 #include <stdint.h> 
+#include <math.h>
 
 #include "common.h"
 #include "minui/minui.h"
@@ -38,7 +39,7 @@
 #endif
 
 
-static int SQUARE_WIDTH=5;
+static int SQUARE_WIDTH=0;
 static int SQUARE_TOP=100;
 static int SQUARE_RIGHT=20;
 static int SQUARE_BOTTOM=0;
@@ -113,13 +114,27 @@ static int key_queue_len = 0;
 static volatile char key_pressed[KEY_MAX + 1];
 static int evt_enabled = 0;
 
+// touch-pointer
 static int pointerx_start = -1;
 static int pointery_start = -1;
 static int pointerx = -1;
 static int pointery = -1;
-static int menutop_diff = 0;
 static int pointer_start_insidemenu=0;
+static struct timeval tvTouchStart;
+
+// scrolling
+#define BOUNCEBACK_TIME 200
+static int menutop_diff = 0;
 static int enable_scrolling = 0;
+
+// bounce
+static int enable_bounceback = 0;
+static int bounceback_start = 0;
+static struct timeval bounceback_start_time;
+static int menuToptmp = 0;
+static int bounceback_targetpos = 0;
+
+
 static int show_menu_selection=0;
 
 // Clear the screen and draw the currently selected background icon (if any).
@@ -289,16 +304,52 @@ static void draw_log_line(int row, const char* t) {
 static int ui_get_menu_top() {
 	return STATUSBAR_HEIGHT+TABCONTROL_HEIGHT+menutop_diff;
 }
+static int ui_get_menu_height() {
+	int i;
+	int height = 0;
+
+	for (i=0; i < menu_items; ++i) {
+		height+=get_menuitem_height(i);
+	}
+
+	return height;
+}
 
 // Redraw everything on the screen.  Does not flip pages.
 // Should only be called with gUpdateMutex locked.
 static void draw_screen_locked(void)
 {
     int i;
+    int marginTop = ui_get_menu_top();
+    struct timeval bouncediff, tvNow;
+    gettimeofday(&tvNow, NULL);
+
+
+    if(enable_bounceback==1) {
+    	timeval_subtract(&bouncediff, &tvNow, &bounceback_start_time);
+    	int t0 = BOUNCEBACK_TIME*1000;
+    	int t1 = t0- (bouncediff.tv_sec*1000000+bouncediff.tv_usec);
+    	int way = abs(bounceback_start-bounceback_targetpos);
+    	int pway = round((double)way/t0*t1);
+
+    	if(pway<=0) {
+    		enable_bounceback=0;
+    		menutop_diff=bounceback_targetpos;
+    	}
+    	else {
+    		if(bounceback_start>bounceback_targetpos) {
+    			menutop_diff=bounceback_targetpos+pway;
+    		}
+    		else {
+    			menutop_diff=bounceback_targetpos-pway;
+    		}
+    	}
+
+    }
+
     draw_background_locked(gCurrentIcon);
     draw_progress_locked();
-    int marginTop = ui_get_menu_top();
-	
+
     if (show_text) {
 		i = 0;
 		if (show_menu) {
@@ -402,7 +453,7 @@ static int drawTab(int left, const char* s, int active)
 
 static void recalcSquare()
 {
-    square_inner_top = SQUARE_TOP+SQUARE_WIDTH-2;
+    square_inner_top = ui_get_menu_top();
     square_inner_right = gr_fb_width()-SQUARE_RIGHT-SQUARE_WIDTH;
     square_inner_bottom = gr_fb_height()-SQUARE_BOTTOM-SQUARE_WIDTH;
     square_inner_left = SQUARE_LEFT+SQUARE_WIDTH;
@@ -946,15 +997,17 @@ int timeval_subtract(struct timeval *result, struct timeval *t2, struct timeval 
     return (diff<0);
 }
 
-static int menuToptmp = 0;
-static struct timeval tvTouchStart, tvNow, tvDiff;
 struct ui_touchresult ui_handle_touch(struct ui_input_event uev) {
 	int i;
 	int clickedItem=-1;
 	struct ui_touchresult ret = {TOUCHRESULT_TYPE_EMPTY,-1};
+	struct timeval tvNow, tvDiff;
 
 	switch(uev.utype) {
 		case UINPUTEVENT_TYPE_TOUCH_START:
+
+			if(enable_scrolling==1) break;
+
 			// save start-time
 			gettimeofday(&tvTouchStart, NULL);
 
@@ -977,7 +1030,7 @@ struct ui_touchresult ui_handle_touch(struct ui_input_event uev) {
 			timeval_subtract(&tvDiff, &tvNow, &tvTouchStart);
 
 			// enable scrolling on different conditions
-			if(pointer_start_insidemenu==1 && enable_scrolling!=1 && tvDiff.tv_sec==0 && tvDiff.tv_usec<=300000 && abs(uev.posy-pointery_start)>=30) {
+			if(pointer_start_insidemenu==1 && enable_scrolling!=1 && tvDiff.tv_sec==0 && tvDiff.tv_usec<=300000 && abs(uev.posy-pointery_start)>=10) {
 				enable_scrolling=1;
 			}
 
@@ -997,6 +1050,25 @@ struct ui_touchresult ui_handle_touch(struct ui_input_event uev) {
 					ret.type = TOUCHRESULT_TYPE_ONCLICK_LIST;
 					ret.item = i;
 					break;
+				}
+			}
+
+			// enable bouncing if scrolling was enabled
+			if(enable_scrolling==1){
+				gettimeofday(&bounceback_start_time, NULL);
+				bounceback_start=menutop_diff;
+
+				if(menutop_diff>0) {
+					bounceback_targetpos=0;
+					enable_bounceback=1;
+				}
+				else if(menutop_diff<0 && square_inner_top+ui_get_menu_height()<square_inner_bottom) {
+					bounceback_targetpos=0;
+					enable_bounceback=1;
+				}
+				else if(menutop_diff<0 && square_inner_top+menutop_diff+ui_get_menu_height()<square_inner_bottom) {
+					bounceback_targetpos=-(square_inner_top+ui_get_menu_height()-square_inner_bottom);
+					enable_bounceback=1;
 				}
 			}
 
