@@ -125,83 +125,70 @@ struct UiMenuResult get_menu_selection(char** headers, char** tabs, struct UiMen
 
   while (ret.result < 0) {
 
-#ifdef BOARD_WITH_CPCAP
-    /*int level = battery_level();
-    if (level > 0) {
-      if ((50 * progress_value) != level / 2) {
-          progress_value = level / 100.0;
-          if (level < 20)
-             ui_print("Low battery ! %3d %%\n", level);
-          ui_reset_progress();
-          ui_show_progress(progress_value, 1);
-          ui_set_progress(1.0);
-      }
-    }*/
-#endif
-
-    struct ui_input_event eventresult = ui_wait_input();
+    struct ui_input_event eventresult;
     int visible = ui_text_visible();
     int action = 0;
 
+    ui_wait_input(&eventresult);
+
     switch(eventresult.utype) {
-    	case UINPUTEVENT_TYPE_KEY:
-    		action = device_handle_key(eventresult.code, visible);
+      case UINPUTEVENT_TYPE_KEY:
+        action = device_handle_key(eventresult.code, visible);
 
-    		if (action < 0) {
-    			if(action==HIGHLIGHT_UP || action==HIGHLIGHT_DOWN || action==SELECT_ITEM) {
-    				if(is_menuSelection_enabled()!=1) {
-    					enableMenuSelection(1);
-    					break;
-    				}
-    			}
+        if (action < 0) {
+          if(action==HIGHLIGHT_UP || action==HIGHLIGHT_DOWN || action==SELECT_ITEM) {
+            if(is_menuSelection_enabled()!=1) {
+              enableMenuSelection(1);
+              break;
+            }
+          }
 
-				switch (action) {
-				  case HIGHLIGHT_UP:
-					--selected;
-					selected = ui_menu_select(selected);
-					break;
-				  case HIGHLIGHT_DOWN:
-					++selected;
-					selected = ui_menu_select(selected);
-					break;
-				  case SELECT_ITEM:
-					ret.result = selected;
-					ret.type = RESULT_LIST;
-					break;
-				  case ACTION_CANCEL:
-					ret.result = GO_BACK;
-					ret.type = RESULT_LIST;
-					break;
-				  case NO_ACTION:
-					break;
-				  case ACTION_NEXTTAB:
-					ret.result = ui_setTab_next();
-					ret.type = RESULT_TAB;
-					break;
-				}
-			} else if (!menu_only) {
-			  ret.result = action;
-			}
-    	break;
+          switch (action) {
+            case HIGHLIGHT_UP:
+              --selected;
+              selected = ui_menu_select(selected);
+              break;
+            case HIGHLIGHT_DOWN:
+              ++selected;
+              selected = ui_menu_select(selected);
+              break;
+            case SELECT_ITEM:
+              ret.result = selected;
+              ret.type = RESULT_LIST;
+              break;
+            case ACTION_CANCEL:
+              ret.result = GO_BACK;
+              ret.type = RESULT_LIST;
+              break;
+            case NO_ACTION:
+              break;
+            case ACTION_NEXTTAB:
+              ret.result = ui_setTab_next();
+              ret.type = RESULT_TAB;
+              break;
+          }
+        } else if (!menu_only) {
+          ret.result = action;
+        }
+        break;
 
-    	case UINPUTEVENT_TYPE_TOUCH_START:
-    	case UINPUTEVENT_TYPE_TOUCH_DRAG:
-    	case UINPUTEVENT_TYPE_TOUCH_RELEASE:
-    		enableMenuSelection(0);
-    		tret = ui_handle_touch(eventresult);
+      case UINPUTEVENT_TYPE_TOUCH_START:
+      case UINPUTEVENT_TYPE_TOUCH_DRAG:
+      case UINPUTEVENT_TYPE_TOUCH_RELEASE:
+        enableMenuSelection(0);
+        tret = ui_handle_touch(eventresult);
 
-    		switch(tret.type) {
-    			case TOUCHRESULT_TYPE_ONCLICK_LIST:
-    				ret.result = tret.item;
-    				ret.type = RESULT_LIST;
-    			break;
-    		}
-    	break;
-    }
+        switch(tret.type) {
+          case TOUCHRESULT_TYPE_ONCLICK_LIST:
+            ret.result = tret.item;
+            ret.type = RESULT_LIST;
+          break;
+        }
+        break;
 
+    } //switch
 
   }
-
   ui_end_menu();
 
   return ret;
@@ -260,7 +247,6 @@ static void prompt_and_wait() {
         __reboot(LINUX_REBOOT_MAGIC1, LINUX_REBOOT_MAGIC2, LINUX_REBOOT_CMD_POWER_OFF, NULL);
         return;
       }
-
       select = menuret.result;
     }
   }
@@ -298,6 +284,56 @@ static int wait_key(int key) {
   evt_exit();
   return result;
 }
+
+/**
+ * Start of UI
+ */
+static int run_bootmenu_ui(int mode) {
+
+  int adb_started = 0;
+
+  // initialize ui
+  ui_init();
+  //ui_set_background(BACKGROUND_DEFAULT);
+  ui_show_text(ENABLE);
+  LOGI("Start Android BootMenu....\n");
+  ui_reset_progress();
+
+  main_headers = prepend_title((const char**)MENU_HEADERS);
+
+  /*
+  ui_start_menu(main_headers, TABS, MENU_ITEMS, 0);
+  ui_wait_key();
+  ui_end_menu();
+  */
+
+  //get_menu_selection(main_headers, TABS, MENU_ITEMS, 0, 0);
+
+  /* can be buggy, adb could lock filesystem
+  if (!adb_started && usb_connected()) {
+    ui_print("Usb connected, starting adb...\n\n");
+    exec_script(FILE_ADBD, DISABLE);
+  }
+  */
+
+  if (mode == int_mode("shell")) {
+    ui_print("\n");
+    ui_print("Current mode: %s\n", str_mode(mode));
+    if (!usb_connected()) {
+      ui_print(" But USB is not connected !\n");
+    }
+  }
+
+  checkup_report();
+  //ui_reset_progress();
+
+  prompt_and_wait();
+  free_menu_headers(main_headers);
+
+  ui_finish();
+  return 0;
+}
+
 
 /**
  * run_bootmenu()
@@ -390,39 +426,9 @@ static int run_bootmenu(void) {
 
     if (status == BUTTON_PRESSED ) {
 
-        ui_init();
-        ui_set_background(BACKGROUND_DEFAULT);
-        ui_show_text(ENABLE);
         led_alert("button-backlight", ENABLE);
 
-        LOGI("Start Android BootMenu....\n");
-
-        main_headers = prepend_title((const char**)MENU_HEADERS);
-
-        /* can be buggy, adb could lock filesystem
-        if (!adb_started && usb_connected()) {
-            ui_print("Usb connected, starting adb...\n\n");
-            exec_script(FILE_ADBD, DISABLE);
-        }
-        */
-
-        ui_print("Default mode: %s\n", str_mode(defmode));
-
-        if (mode == int_mode("shell")) {
-            ui_print("\n");
-            ui_print("Current mode: %s\n", str_mode(mode));
-            if (!usb_connected()) {
-                ui_print(" But USB is not connected !\n");
-            }
-        }
-
-        checkup_report();
-        ui_reset_progress();
-
-        prompt_and_wait();
-        free_menu_headers(main_headers);
-
-        ui_finish();
+        run_bootmenu_ui(mode);
     }
 
   }
@@ -433,30 +439,59 @@ static int run_bootmenu(void) {
 /**
  * main()
  *
- * Here is the hijack part, logwrapper is linked to bootmenu
- * we trap some of logged commands from init.rc
+ * Here is the hijack init.rc part, logwrapper is a symlink pointing
+ * to this bootmenu binary, we trap some of logged commands from init.rc
  *
  */
 int main(int argc, char **argv) {
+  int result;
 
-  // initialize ui
-  ui_init();
-  //ui_set_background(BACKGROUND_DEFAULT);
-  ui_show_text(ENABLE);
-  LOGI("Start Android BootMenu....\n");
-  ui_reset_progress();
-  
-  
-  main_headers = prepend_title((const char**)MENU_HEADERS);
- /* ui_start_menu(main_headers, TABS, MENU_ITEMS, 0);
-  ui_wait_key();
-  ui_end_menu();*/
-  
-  //get_menu_selection(main_headers, TABS, MENU_ITEMS, 0, 0);
-  prompt_and_wait();
-  free_menu_headers(main_headers);
-  
-  ui_finish();
+  if (argc == 2 && 0 == strcmp(argv[1], "postbootmenu")) {
+
+    /* init.rc call: "exec bootmenu postbootmenu" */
+
+    exec_script(FILE_OVERCLOCK, DISABLE);
+    result = exec_script(FILE_POST_MENU, DISABLE);
+    bypass_sign("no");
+    sync();
+    return result;
+  }
+  else if (NULL != strstr(argv[0], "bootmenu")) {
+
+    /* Direct UI, without key test */
+
+    fprintf(stdout, "Run BootMenu..\n");
+    exec_script(FILE_PRE_MENU, DISABLE);
+    int mode = get_bootmode(0,0);
+    result = run_bootmenu_ui(mode);
+    sync();
+    return result;
+  }
+  else if (argc >= 3 && 0 == strcmp(argv[2], "userdata")) {
+
+    /* init.rc call: "exec logwrapper mount.sh userdata" */
+
+    result = run_bootmenu();
+    real_execute(argc, argv);
+    bypass_sign("no");
+    sync();
+    return result;
+  }
+  else if (argc >= 3 && 0 == strcmp(argv[2], "pds")) {
+
+    /* kept for stock rom compatibility, please use postbootmenu parameter */
+
+    real_execute(argc, argv);
+    exec_script(FILE_OVERCLOCK, DISABLE);
+    result = exec_script(FILE_POST_MENU, DISABLE);
+    bypass_sign("no");
+    sync();
+    return result;
+  }
+  else {
+    return real_execute(argc, argv);
+  }
+
   return 0;
 }
 

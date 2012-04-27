@@ -87,7 +87,7 @@ const char* str_mode(int mode) {
 }
 
 /**
- * show_menu_boot() 
+ * show_menu_boot()
  *
  */
 int show_menu_boot(void) {
@@ -112,34 +112,15 @@ int show_menu_boot(void) {
   };
   char** title_headers = prepend_title(headers);
 
-  /*char* items[(MODES_COUNT - 3 + 6)] = {
-        "  +Set Default: [" LABEL_2NDINIT "] -->",
-        "  [" LABEL_2NDINIT "]",
-        "  [" LABEL_2NDBOOT "]",
-        "  [" LABEL_2NDSYSTEM "]",
-        "  [" LABEL_NORMAL "]",
-
-        "  [" LABEL_TOGGLE_ADB "]",
-
-#ifdef DEBUG_ALLOC
-        "  [test fb]",
-        "  [test evt]",
-        "  [test png]",
-        "  [test all]",
-#endif
-        "  --Go Back.",
-        NULL
-  };*/
-  
   struct UiMenuItem items[(MODES_COUNT - 3 + 6)] = {
     {MENUITEM_SMALL, "Set Default: [" LABEL_2NDINIT "]", NULL},
     {MENUITEM_SMALL, LABEL_2NDINIT, NULL},
     {MENUITEM_SMALL, LABEL_2NDBOOT, NULL},
     {MENUITEM_SMALL, LABEL_2NDSYSTEM, NULL},
     {MENUITEM_SMALL, LABEL_NORMAL, NULL},
-    
+
     {MENUITEM_SMALL, LABEL_TOGGLE_ADB, NULL},
-    
+
 #ifdef DEBUG_ALLOC
     {MENUITEM_SMALL, "test fb", NULL},
     {MENUITEM_SMALL, "test evt", NULL},
@@ -170,7 +151,7 @@ int show_menu_boot(void) {
     }
 
     //ADB Toggle
-    sprintf(opt_adb, LABEL_TOGGLE_ADB " %s", boot_with_adb?"active":"disabled");
+    sprintf(opt_adb, LABEL_TOGGLE_ADB " %s", boot_with_adb ? "enable":"disable");
     items[TOGGLE_ADB].title = opt_adb;
 
     ret = get_menu_selection(title_headers, TABS, items, 1, 0);
@@ -248,6 +229,8 @@ int show_menu_boot(void) {
       case BOOT_FBTEST:
         led_alert("green", 1);
         gr_fb_test();
+        ui_stop_redraw();
+        ui_resume_redraw();
         led_alert("green", 0);
         res = 0;
         goto exit_loop;
@@ -423,6 +406,7 @@ int show_menu_system(void) {
 /**
  * show_menu_tools()
  *
+ * ADB shell and usb shares
  */
 int show_menu_tools(void) {
 
@@ -530,13 +514,13 @@ int show_menu_tools(void) {
  */
 int show_menu_recovery(void) {
 
-#ifndef USE_STABLE_RECOVERY
-  #define RECOVERY_CUSTOM     0
-  #define RECOVERY_STOCK      1
-#else
+#ifdef USE_STABLE_RECOVERY
   #define RECOVERY_CUSTOM     0
   #define RECOVERY_STABLE     1
   #define RECOVERY_STOCK      2
+#else
+  #define RECOVERY_CUSTOM     0
+  #define RECOVERY_STOCK      1
 #endif
 
   int status, res=0;
@@ -566,7 +550,11 @@ int show_menu_recovery(void) {
     case RECOVERY_CUSTOM:
       ui_print("Starting Recovery..\n");
       ui_print("This can take a couple of seconds.\n");
+      ui_show_text(DISABLE);
+      ui_stop_redraw();
       status = exec_script(FILE_CUSTOMRECOVERY, ENABLE);
+      ui_resume_redraw();
+      ui_show_text(ENABLE);
       if (!status) res = 1;
       break;
 
@@ -574,7 +562,11 @@ int show_menu_recovery(void) {
     case RECOVERY_STABLE:
       ui_print("Starting Recovery..\n");
       ui_print("This can take a couple of seconds.\n");
+      ui_show_text(DISABLE);
+      ui_stop_redraw();
       status = exec_script(FILE_STABLERECOVERY, ENABLE);
+      ui_resume_redraw();
+      ui_show_text(ENABLE);
       if (!status) res = 1;
       break;
 #endif
@@ -623,7 +615,7 @@ int snd_init(int ui) {
 
   if (ui)
     ui_print("Wait 2 seconds....\n");
-  else 
+  else
     LOGI("Wait 2 seconds....\n");
 
   for(i = 2; i > 0; --i) {
@@ -653,14 +645,14 @@ int snd_boot(int ui) {
     ui_print("Start " LABEL_2NDBOOT " boot....\n");
   else
     LOGI("Start " LABEL_2NDBOOT " boot....\n");
-  
+
 #ifdef USE_DUALCORE_DIRTY_HACK
     if(!ui)
       status = snd_exec_script(FILE_2NDBOOT, ui);
     else
 #endif
       status = exec_script(FILE_2NDBOOT, ui);
-  
+
   if (status) {
     bypass_sign("no");
     return -1;
@@ -705,7 +697,7 @@ int snd_system(int ui) {
     else
 #endif
       status = exec_script(FILE_2NDSYSTEM, ui);
-  
+
   if (status) {
     bypass_sign("no");
     return -1;
@@ -1051,6 +1043,9 @@ int snd_exec_script(const char* filename, int ui) {
 /**
  * real_execute()
  *
+ * when bootmenu is substitued to a system binary (like logwrapper)
+ * we need also to execute the original binary, renamed logwrapper.bin
+ *
  */
 int real_execute(int r_argc, char** r_argv) {
   char* hijacked_executable = r_argv[0];
@@ -1058,14 +1053,15 @@ int real_execute(int r_argc, char** r_argv) {
   int i;
 
   char real_executable[PATH_MAX];
-  sprintf(real_executable, "%s.bin", hijacked_executable);
   char ** argp = (char **)malloc(sizeof(char *) * (r_argc + 1));
-  for (i = 0; i < r_argc; i++) {
+
+  sprintf(real_executable, "%s.bin", hijacked_executable);
+
+  argp[0] = real_executable;
+  for (i = 1; i < r_argc; i++) {
       argp[i] = r_argv[i];
   }
   argp[r_argc] = NULL;
-
-  argp[0] = real_executable;
 
   result = exec_and_wait(argp);
 
@@ -1083,9 +1079,9 @@ int real_execute(int r_argc, char** r_argv) {
  */
 int file_exists(char * file)
 {
-    struct stat file_info;
-    memset(&file_info,0,sizeof(file_info));
-    return (int) (0 == stat(file, &file_info));
+  struct stat file_info;
+  memset(&file_info,0,sizeof(file_info));
+  return (int) (0 == stat(file, &file_info));
 }
 
 /**
@@ -1117,7 +1113,7 @@ int adb_started() {
   int res=0;
   FILE* f;
 
-  
+
 
   return res;
 }
