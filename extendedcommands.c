@@ -322,11 +322,11 @@ int show_config_bootmode(void) {
       }
     }
     if (set_default_bootmode(ret.result) == 0) {
-      ui_print("Done..\n");
+      ui_print("Done..");
       continue;
     }
     else {
-      ui_print("Failed to setup default boot mode.\n");
+      ui_print("Failed to setup default boot mode.");
       break;
     }
   }
@@ -1085,6 +1085,25 @@ int file_exists(char * file)
   return (int) (0 == stat(file, &file_info));
 }
 
+int log_dumpfile(char * file)
+{
+  char buffer[MAX_COLS];
+  int lines = 0;
+  FILE* f = fopen(file, "r");
+  if (f == NULL) return 0;
+
+  while (fgets(buffer, MAX_COLS, f) != NULL) {
+    ui_print("%s", buffer);
+    lines++;
+
+    // limit max read size...
+    if (lines > MAX_ROWS*100) break;
+  }
+  fclose(f);
+
+  return lines;
+}
+
 /**
  * usb_connected()
  *
@@ -1132,9 +1151,11 @@ int adb_started() {
     // must be restarted, if usb was disconnected
     adbd_ready = false;
     f = fopen(FILE_ADB_STATE, "w");
-    fprintf(f, "");
-    fflush(f);
-    fclose(f);
+    if (f != NULL) {
+      fprintf(f, "\n");
+      fflush(f);
+      fclose(f);
+    }
   }
 
   return adbd_ready;
