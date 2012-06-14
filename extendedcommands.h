@@ -23,6 +23,8 @@
 #define BOOTMODE_CONFIG_FILE "/cache/recovery/bootmode.conf"
 #endif
 
+#define SYSTEMS_MAX 100
+
 // one or 2 recovery binaries
 #if !STOCK_VERSION
 #define USE_STABLE_RECOVERY
@@ -56,6 +58,10 @@ static const char *SYS_POWER_CONNECTED  = "/sys/class/power_supply/ac/online";
 static const char *SYS_USB_CONNECTED    = "/sys/class/power_supply/usb/online";
 static const char *SYS_BATTERY_LEVEL    = "/sys/class/power_supply/battery/charge_counter"; // content: 0 to 100
 
+// these paths are defined in fshook.config.sh, too
+static const char *FOLDER_MULTIBOOT_SYSTEMS    = "/fshook/mounts/imageSrc/multiboot/";
+static const char *FILE_MULTIBOOT_DEFAULT_SYSTEM  = BM_ROOTDIR "/config/multiboot_default_system.conf";
+
 #if STOCK_VERSION
 
 static const char *FILE_ROOT      = BM_ROOTDIR "/script/unroot.sh";
@@ -72,6 +78,9 @@ int show_menu_boot(void);
 int show_menu_overclock(void);
 int show_menu_tools(void);
 int show_menu_recovery(void);
+int show_menu_multiboot(void);
+struct multibootsystem_result show_menu_multiboot_system_selection();
+char* show_menu_multiboot_system_preboot_selection();
 
 int usb_connected(void);
 int adb_started(void);
@@ -88,6 +97,9 @@ int get_default_bootmode(void);
 int set_default_bootmode(int mode);
 int get_bootmode(int clean, int log);
 
+int get_multiboot_default_system(char* name);
+int set_multiboot_default_system(const char* str);
+
 int bootmode_write(const char* str);
 int next_bootmode_write(const char* str);
 
@@ -95,15 +107,26 @@ int bypass_sign(const char* mode);
 int bypass_check(void);
 
 int exec_and_wait(char** argp);
-int exec_script(const char* filename, int ui);
+int exec_script(const char* filename, int ui, char** additional_args);
 int real_execute(int r_argc, char** r_argv);
 int file_exists(char * file);
 
-int snd_exec_script(const char* filename, int ui);
+int snd_exec_script(const char* filename, int ui, char** additional_args);
 
 int log_dumpfile(char * file);
 
 int set_usb_device_mode(const char *mode);
 int mount_usb_storage(const char *part);
+
+char** getMultibootSystems(char **systems);
+void freeMultibootSystemsResult(char **systems);
+
+struct multibootsystem_result {
+	int type;
+	char* value;
+};
+#define MULTIBOOTSYSTEM_RESULT_TYPE_ABORT    -1
+#define MULTIBOOTSYSTEM_RESULT_TYPE_SHOWLIST  0
+#define MULTIBOOTSYSTEM_RESULT_TYPE_SELECTION 1
 
 #endif // EXTENDED_COMMAND_H

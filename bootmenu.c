@@ -42,9 +42,10 @@ enum {
 #define ITEM_OVERCLOCK   2
 #define ITEM_RECOVERY    3
 #define ITEM_TOOLS       4
-#define ITEM_POWEROFF    5
+#define ITEM_MULTIBOOT   5
+#define ITEM_POWEROFF    6
 
-#define ITEM_LAST        5
+#define ITEM_LAST        6
 
 struct UiMenuItem MENU_ITEMS[] = {
   {MENUITEM_SMALL, "Reboot", NULL},
@@ -58,6 +59,7 @@ struct UiMenuItem MENU_ITEMS[] = {
 #endif
   {MENUITEM_SMALL, "Recovery", ""},
   {MENUITEM_SMALL, "Tools", ""},
+  {MENUITEM_SMALL, "Multiboot", ""},
   {MENUITEM_SMALL, "Shutdown", ""},
   {MENUITEM_NULL, NULL, NULL},
 };
@@ -209,6 +211,12 @@ static int compare_string(const void* a, const void* b) {
 static void prompt_and_wait() {
 
   int select = 0;
+  int enable_multiboot = 1;
+
+  if(!file_exists((char*)FILE_2NDSYSTEM)) {
+	  MENU_ITEMS[ITEM_MULTIBOOT].title="";
+	  enable_multiboot=0;
+  }
 
   for (;;) {
     struct UiMenuResult menuret = get_menu_selection(main_headers, TABS, MENU_ITEMS, 0, select);
@@ -242,6 +250,12 @@ static void prompt_and_wait() {
       case ITEM_TOOLS:
         if (show_menu_tools()) return;
         break;
+      case ITEM_MULTIBOOT:
+    	if(enable_multiboot) {
+			if (show_menu_multiboot()) return;
+
+    	}
+    	break;
       case ITEM_POWEROFF:
         sync();
         __reboot(LINUX_REBOOT_MAGIC1, LINUX_REBOOT_MAGIC2, LINUX_REBOOT_CMD_POWER_OFF, NULL);
@@ -312,7 +326,7 @@ static int run_bootmenu_ui(int mode) {
   /* can be buggy, adb could lock filesystem
   if (!adb_started && usb_connected()) {
     ui_print("Usb connected, starting adb...\n\n");
-    exec_script(FILE_ADBD, DISABLE);
+    exec_script(FILE_ADBD, DISABLE, NULL);
   }
   */
 
@@ -352,7 +366,7 @@ static int run_bootmenu(void) {
   if (bypass_check()) {
 
     // init rootfs and mount cache
-    exec_script(FILE_PRE_MENU, DISABLE);
+    exec_script(FILE_PRE_MENU, DISABLE, NULL);
 
     led_alert("blue", ENABLE);
 
@@ -374,7 +388,7 @@ static int run_bootmenu(void) {
       if (mode == int_mode("2nd-init-adb")
        || mode == int_mode("2nd-boot-adb")
        || mode == int_mode("2nd-system-adb")) {
-         exec_script(FILE_ADBD, DISABLE);
+         exec_script(FILE_ADBD, DISABLE, NULL);
          adb_started = 1;
       }
     }
@@ -411,17 +425,17 @@ static int run_bootmenu(void) {
       }
       else if (mode == int_mode("recovery-dev")) {
           led_alert("blue", DISABLE);
-          exec_script(FILE_CUSTOMRECOVERY, DISABLE);
+          exec_script(FILE_CUSTOMRECOVERY, DISABLE, NULL);
           status = BUTTON_TIMEOUT;
       }
       else if (mode == int_mode("recovery")) {
           led_alert("blue", DISABLE);
-          exec_script(FILE_STABLERECOVERY, DISABLE);
+          exec_script(FILE_STABLERECOVERY, DISABLE, NULL);
           status = BUTTON_TIMEOUT;
       }
       else if (mode == int_mode("shell")) {
           led_alert("blue", DISABLE);
-          exec_script(FILE_ADBD, DISABLE);
+          exec_script(FILE_ADBD, DISABLE, NULL);
           status = BUTTON_PRESSED;
       }
       else if (mode == int_mode("normal") || mode == int_mode("normal-adb")) {
@@ -458,8 +472,8 @@ int main(int argc, char **argv) {
 
     /* init.rc call: "exec bootmenu postbootmenu" */
 
-    exec_script(FILE_OVERCLOCK, DISABLE);
-    result = exec_script(FILE_POST_MENU, DISABLE);
+    exec_script(FILE_OVERCLOCK, DISABLE, NULL);
+    result = exec_script(FILE_POST_MENU, DISABLE, NULL);
     bypass_sign("no");
     sync();
     return result;
@@ -470,7 +484,7 @@ int main(int argc, char **argv) {
 
 #ifndef UNLOCKED_DEVICE
     fprintf(stdout, "Run BootMenu..\n");
-    exec_script(FILE_PRE_MENU, DISABLE);
+    exec_script(FILE_PRE_MENU, DISABLE, NULL);
     int mode = get_bootmode(0,0);
     result = run_bootmenu_ui(mode);
 #else
@@ -497,8 +511,8 @@ int main(int argc, char **argv) {
     /* kept for stock rom compatibility, please use postbootmenu parameter */
 
     real_execute(argc, argv);
-    exec_script(FILE_OVERCLOCK, DISABLE);
-    result = exec_script(FILE_POST_MENU, DISABLE);
+    exec_script(FILE_OVERCLOCK, DISABLE, NULL);
+    result = exec_script(FILE_POST_MENU, DISABLE, NULL);
     bypass_sign("no");
     sync();
     return result;

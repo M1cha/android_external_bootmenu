@@ -23,6 +23,7 @@
 #include <sys/wait.h>
 #include <sys/reboot.h>
 #include <unistd.h>
+#include <dirent.h>
 
 #include "common.h"
 #include "extendedcommands.h"
@@ -183,14 +184,14 @@ int show_menu_boot(void) {
     //Direct boot modes
     else if (ret.result == BOOT_2NDINIT) {
         if (boot_with_adb && usb_connected() && !adb_started())
-            exec_script(FILE_ADBD, ENABLE);
+            exec_script(FILE_ADBD, ENABLE, NULL);
         status = snd_init(ENABLE);
         res = (status == 0);
         goto exit_loop;
     }
     else if (ret.result == BOOT_2NDBOOT) {
         if (boot_with_adb && usb_connected() && !adb_started())
-            exec_script(FILE_ADBD, ENABLE);
+            exec_script(FILE_ADBD, ENABLE, NULL);
         status = snd_boot(ENABLE);
         res = (status == 0);
         goto exit_loop;
@@ -201,14 +202,14 @@ int show_menu_boot(void) {
             continue;
         }
         if (boot_with_adb && usb_connected() && !adb_started())
-            exec_script(FILE_ADBD, ENABLE);
+            exec_script(FILE_ADBD, ENABLE, NULL);
         status = snd_system(ENABLE);
         res = (status == 0);
         goto exit_loop;
     }
     else if (ret.result == BOOT_NORMAL) {
         if (boot_with_adb && usb_connected() && !adb_started())
-            exec_script(FILE_ADBD, ENABLE);
+            exec_script(FILE_ADBD, ENABLE, NULL);
         status = stk_boot(ENABLE);
         res = (status == 0);
         goto exit_loop;
@@ -455,7 +456,7 @@ int show_menu_tools(void) {
   switch (ret.result) {
     case TOOL_ADB:
       ui_print("ADB Deamon....");
-      status = exec_script(FILE_ADBD, ENABLE);
+      status = exec_script(FILE_ADBD, ENABLE, NULL);
       ui_print("Done..\n");
       break;
 
@@ -469,25 +470,25 @@ int show_menu_tools(void) {
 
     case TOOL_USB:
       ui_print("USB Mass Storage....");
-      status = exec_script(FILE_SDCARD, ENABLE);
+      status = exec_script(FILE_SDCARD, ENABLE, NULL);
       ui_print("Done..\n");
       break;
 
     case TOOL_CDROM:
       ui_print("USB Drivers....");
-      status = exec_script(FILE_CDROM, ENABLE);
+      status = exec_script(FILE_CDROM, ENABLE, NULL);
       ui_print("Done..\n");
       break;
 
     case TOOL_SYSTEM:
       ui_print("Sharing System Partition....");
-      status = exec_script(FILE_SYSTEM, ENABLE);
+      status = exec_script(FILE_SYSTEM, ENABLE, NULL);
       ui_print("Done..\n");
       break;
 
     case TOOL_DATA:
       ui_print("Sharing Data Partition....");
-      status = exec_script(FILE_DATA, ENABLE);
+      status = exec_script(FILE_DATA, ENABLE, NULL);
       ui_print("Done..\n");
       break;
 
@@ -554,7 +555,7 @@ int show_menu_recovery(void) {
       ui_print("This can take a couple of seconds.\n");
       ui_show_text(DISABLE);
       ui_stop_redraw();
-      status = exec_script(FILE_CUSTOMRECOVERY, ENABLE);
+      status = exec_script(FILE_CUSTOMRECOVERY, ENABLE, NULL);
       ui_resume_redraw();
       ui_show_text(ENABLE);
       if (!status) res = 1;
@@ -566,7 +567,7 @@ int show_menu_recovery(void) {
       ui_print("This can take a couple of seconds.\n");
       ui_show_text(DISABLE);
       ui_stop_redraw();
-      status = exec_script(FILE_STABLERECOVERY, ENABLE);
+      status = exec_script(FILE_STABLERECOVERY, ENABLE, NULL);
       ui_resume_redraw();
       ui_show_text(ENABLE);
       if (!status) res = 1;
@@ -588,6 +589,193 @@ int show_menu_recovery(void) {
 }
 
 /**
+ * show_menu_recovery()
+ *
+ */
+int show_menu_multiboot(void) {
+
+  #define MULTIBOOT_BOOTMODE  		  0
+  #define MULTIBOOT_RECOVERY  		  1
+  #define MULTIBOOT_SYS_SETTINGS     2
+  #define MULTIBOOT_GEN_SETTINGS     3
+  #define MULTIBOOT_BACK     		  4
+
+  int status, res=0;
+  char** args;
+  FILE* f;
+  char opt_system[300];
+  char mb_system[256];
+  struct multibootsystem_result mbs_result;
+
+  const char* headers[] = {
+        " # Multiboot -->",
+        "",
+        NULL
+  };
+  char** title_headers = prepend_title(headers);
+
+  struct UiMenuItem items[] = {
+    {MENUITEM_SMALL, "Set Bootmode", NULL},
+    {MENUITEM_SMALL, "Recovery", NULL},
+    {MENUITEM_SMALL, "System-Specific Settings", NULL},
+    {MENUITEM_SMALL, "General-Settings", NULL},
+    {MENUITEM_SMALL, "<--Go Back", NULL},
+    {MENUITEM_NULL, NULL, NULL},
+  };
+
+  for(;;) {
+	  if(get_multiboot_default_system(mb_system)==0)
+		  sprintf(opt_system, "Set Bootmode: [%s]", mb_system);
+	  else
+		  sprintf(opt_system, "Set Bootmode: [%s]", "Show List");
+	  items[0].title = opt_system;
+
+	  struct UiMenuResult ret = get_menu_selection(title_headers, TABS, items, 1, 0);
+
+	  switch (ret.result) {
+
+		case MULTIBOOT_BOOTMODE:
+			mbs_result = show_menu_multiboot_system_selection();
+			if(mbs_result.type==MULTIBOOTSYSTEM_RESULT_TYPE_SELECTION) {
+				set_multiboot_default_system(mbs_result.value);
+			}
+			else if(mbs_result.type==MULTIBOOTSYSTEM_RESULT_TYPE_SHOWLIST) {
+				set_multiboot_default_system("");
+			}
+		  break;
+
+		case MULTIBOOT_BACK:
+		case GO_BACK:
+		  goto exit_loop_m1;
+		  break;
+	  }
+  }
+
+  exit_loop_m1:
+	  free_menu_headers(title_headers);
+	  return res;
+}
+
+/**
+ * show_menu_multiboot_system_selection()
+ *
+ */
+struct multibootsystem_result show_menu_multiboot_system_selection() {
+
+  //last mode enabled for default modes (adb disabled)
+
+  struct multibootsystem_result res;
+  res.type = MULTIBOOTSYSTEM_RESULT_TYPE_ABORT;
+  res.value = NULL;
+
+  const char* headers[3] = {
+          " # Multiboot --> Select System -->",
+          "",
+          NULL
+  };
+  char** title_headers = prepend_title(headers);
+
+  struct UiMenuItem menu_opts[SYSTEMS_MAX];
+  int i, mode, numItems;
+  struct UiMenuResult ret;
+
+  // load systems into opts
+  char **systems = malloc(sizeof(char*)*SYSTEMS_MAX);
+  getMultibootSystems(systems);
+  for(numItems=2; systems[numItems-2]; numItems++) {
+	  if(numItems<SYSTEMS_MAX) menu_opts[numItems] = buildMenuItem(MENUITEM_SMALL, systems[numItems-2], NULL);
+  }
+
+  menu_opts[0] = buildMenuItem(MENUITEM_SMALL, "Show List", NULL);
+  menu_opts[1] = buildMenuItem(MENUITEM_SMALL, "", NULL);
+  menu_opts[numItems++] = buildMenuItem(MENUITEM_SMALL, "", NULL);
+
+  int ITEM_BACK = numItems++;
+  menu_opts[ITEM_BACK] = buildMenuItem(MENUITEM_SMALL, "<--Go Back", NULL);
+  menu_opts[numItems++] = buildMenuItem(MENUITEM_NULL, NULL, NULL);
+
+  for (;;) {
+    ret = get_menu_selection(title_headers, TABS, menu_opts, 1, 0);
+
+    if(ret.result==ITEM_BACK || ret.result==GO_BACK) break;
+
+    if(ret.result==0) {
+    	res.type = MULTIBOOTSYSTEM_RESULT_TYPE_SHOWLIST;
+    	break;
+    }
+
+    else if(ret.result>1 && ret.result<ITEM_BACK-1) {
+    	res.type = MULTIBOOTSYSTEM_RESULT_TYPE_SELECTION;
+    	res.value = menu_opts[ret.result].title;
+    	break;
+    }
+
+  }
+  freeMultibootSystemsResult(systems);
+  free(systems);
+  free_menu_headers(title_headers);
+  return res;
+}
+
+/**
+ * show_menu_multiboot_system_preboot_selection()
+ *
+ */
+char* show_menu_multiboot_system_preboot_selection() {
+
+  //last mode enabled for default modes (adb disabled)
+
+  char* res;
+
+  const char* headers[3] = {
+          " # Multiboot --> Select System -->",
+          "",
+          NULL
+  };
+  char** title_headers = prepend_title(headers);
+
+  struct UiMenuItem menu_opts[SYSTEMS_MAX];
+  int i, mode, numItems;
+  struct UiMenuResult ret;
+
+  // load systems into opts
+  char **systems = malloc(sizeof(char*)*SYSTEMS_MAX);
+  getMultibootSystems(systems);
+  for(numItems=2; systems[numItems-2]; numItems++) {
+  	  if(numItems<SYSTEMS_MAX) menu_opts[numItems] = buildMenuItem(MENUITEM_SMALL, systems[numItems-2], NULL);
+  }
+
+  menu_opts[numItems++] = buildMenuItem(MENUITEM_SMALL, "", NULL);
+
+  int ITEM_SHUTDOWN = numItems++;
+  menu_opts[ITEM_SHUTDOWN] = buildMenuItem(MENUITEM_SMALL, "Shutdown", NULL);
+  menu_opts[numItems++] = buildMenuItem(MENUITEM_NULL, NULL, NULL);
+
+  int select = 0;
+  for (;;) {
+    ret = get_menu_selection(title_headers, TABS, menu_opts, 1, select);
+
+    if(ret.result==ITEM_SHUTDOWN) {
+    	 sync();
+		__reboot(LINUX_REBOOT_MAGIC1, LINUX_REBOOT_MAGIC2, LINUX_REBOOT_CMD_POWER_OFF, NULL);
+		return NULL;
+    }
+
+    else if(ret.result>1 && ret.result<ITEM_SHUTDOWN-1) {
+    	res = menu_opts[ret.result].title;
+    	break;
+    }
+    select = ret.result;
+  }
+
+  freeMultibootSystemsResult(systems);
+  free(systems);
+  free_menu_headers(title_headers);
+  return res;
+}
+
+
+/**
  * snd_init()
  *
  * 2nd-init Profile (reload init with new .rc files)
@@ -606,10 +794,10 @@ int snd_init(int ui) {
   ui_stop_redraw();
 #ifdef USE_DUALCORE_DIRTY_HACK
     if(!ui)
-      status = snd_exec_script(FILE_2NDINIT, ui);
+      status = snd_exec_script(FILE_2NDINIT, ui, NULL);
     else
 #endif
-      status = exec_script(FILE_2NDINIT, ui);
+      status = exec_script(FILE_2NDINIT, ui, NULL);
   ui_resume_redraw();
 
   if (status) {
@@ -653,10 +841,10 @@ int snd_boot(int ui) {
   ui_stop_redraw();
 #ifdef USE_DUALCORE_DIRTY_HACK
     if(!ui)
-      status = snd_exec_script(FILE_2NDBOOT, ui);
+      status = snd_exec_script(FILE_2NDBOOT, ui, NULL);
     else
 #endif
-      status = exec_script(FILE_2NDBOOT, ui);
+      status = exec_script(FILE_2NDBOOT, ui, NULL);
   ui_resume_redraw();
 
   if (status) {
@@ -689,6 +877,23 @@ int snd_boot(int ui) {
 int snd_system(int ui) {
   int status;
   int i;
+  char mb_system[256];
+  char **args = malloc(sizeof(char*) * 2);
+
+  // get multiboot-system
+  if(get_multiboot_default_system(mb_system)==0) {
+	  args[0] = mb_system;
+  }
+  else {
+	  if(!ui) {
+		  ui_init();
+		  ui_show_text(ENABLE);
+	  }
+	  args[0] = show_menu_multiboot_system_preboot_selection();
+	  ui_show_text(0);
+	  ui_stop_redraw();
+  }
+  args[1]=NULL;
 
   bypass_sign("yes");
 
@@ -700,11 +905,13 @@ int snd_system(int ui) {
   ui_stop_redraw();
 #ifdef USE_DUALCORE_DIRTY_HACK
     if(!ui)
-      status = snd_exec_script(FILE_2NDSYSTEM, ui);
+      status = snd_exec_script(FILE_2NDSYSTEM, ui, args);
     else
 #endif
-      status = exec_script(FILE_2NDSYSTEM, ui);
+      status = exec_script(FILE_2NDSYSTEM, ui, args);
   ui_resume_redraw();
+
+  if(args!=NULL) free(args);
 
   if (status) {
     bypass_sign("no");
@@ -744,7 +951,7 @@ int stk_boot(int ui) {
   else
     LOGI("Start " LABEL_NORMAL " boot....\n");
 
-  status = exec_script(FILE_STOCK, ui);
+  status = exec_script(FILE_STOCK, ui, NULL);
   if (status) {
     return -1;
     bypass_sign("no");
@@ -796,7 +1003,7 @@ int get_bootmode(int clean,int log) {
 
       if (clean) {
           // unlink(FILE_BOOTMODE); //buggy unlink ?
-          exec_script(FILE_BOOTMODE_CLEAN,DISABLE);
+          exec_script(FILE_BOOTMODE_CLEAN,DISABLE, NULL);
       }
 
       m = int_mode(mode);
@@ -866,6 +1073,46 @@ int next_bootmode_write(const char* str) {
     return 0;
   }
 
+  return 1;
+}
+
+// --------------------------------------------------------
+
+/**
+ * get_multiboot_default_system()
+ *
+ */
+int get_multiboot_default_system(char* name) {
+  name[0]=0x0;
+  FILE* f = fopen(FILE_MULTIBOOT_DEFAULT_SYSTEM, "r");
+  if (f != NULL) {
+      fscanf(f, "%s", name);
+      fclose(f);
+
+      if(strlen(name)==0) return 1;
+      return 0;
+  }
+
+  return 1;
+}
+
+/**
+ * set_multiboot_default_system()
+ *
+ * write default multiboot-system in config file
+ */
+int set_multiboot_default_system(const char* str) {
+  FILE* f = fopen(FILE_MULTIBOOT_DEFAULT_SYSTEM, "w");
+
+  if (f != NULL) {
+    fprintf(f, "%s", str);
+    fflush(f);
+    fclose(f);
+    sync();
+    return 0;
+  }
+
+  ui_print("ERROR: unable to write multiboot-system %s\n", str);
   return 1;
 }
 
@@ -966,9 +1213,17 @@ int exec_and_wait(char** argp) {
  * exec_script()
  *
  */
-int exec_script(const char* filename, int ui) {
-  int status;
+int exec_script(const char* filename, int ui, char** additional_args) {
+  int status, i;
   char** args;
+  int numAdditionalArgs = 0;
+
+  // count additional args
+  if(additional_args!=NULL) {
+	  for(numAdditionalArgs=0; additional_args[numAdditionalArgs]!=NULL; numAdditionalArgs++) {
+		  printf("numAdditionalArgs=%d; %s\n", numAdditionalArgs, additional_args[numAdditionalArgs]);
+	  }
+  }
 
   if (!file_exists((char*) filename)) {
     LOGE("Script not found :\n%s\n", filename);
@@ -979,9 +1234,13 @@ int exec_script(const char* filename, int ui) {
 
   chmod(filename, 0755);
 
-  args = malloc(sizeof(char*) * 2);
+  // add additional args to final args
+  args = malloc(sizeof(char*) * (2 + numAdditionalArgs));
   args[0] = (char *) filename;
-  args[1] = NULL;
+  for(i=0; i<numAdditionalArgs; i++) {
+	  args[i+1] = additional_args[i];
+  }
+  args[numAdditionalArgs+1] = NULL;
 
   status = exec_and_wait(args);
 
@@ -1014,9 +1273,17 @@ inline int snd_reboot() {
  *
  * We need to reboot phone to retry because the phone is not in a proper state
  */
-int snd_exec_script(const char* filename, int ui) {
-  int status;
+int snd_exec_script(const char* filename, int ui, char** additional_args) {
+  int status, i;
   char** args;
+  int numAdditionalArgs = 0;
+
+  // count additional args
+  if(additional_args!=NULL) {
+	  for(numAdditionalArgs=0; additional_args[numAdditionalArgs]!=NULL; numAdditionalArgs++) {
+		  printf("numAdditionalArgs=%d; %s\n", numAdditionalArgs, additional_args[numAdditionalArgs]);
+	  }
+  }
 
   if (!file_exists((char*) filename)) {
     LOGE("Script not found :\n%s\n", filename);
@@ -1024,12 +1291,15 @@ int snd_exec_script(const char* filename, int ui) {
   }
 
   LOGI("exec %s\n", filename);
-
   chmod(filename, 0755);
 
-  args = malloc(sizeof(char*) * 2);
+  // add additional args to final args
+  args = malloc(sizeof(char*) * (2 + numAdditionalArgs));
   args[0] = (char *) filename;
-  args[1] = NULL;
+  for(i=0; i<numAdditionalArgs; i++) {
+	  args[i+1] = additional_args[i];
+  }
+  args[numAdditionalArgs+1] = NULL;
 
   status = exec_and_wait(args);
 
@@ -1230,3 +1500,36 @@ int mount_usb_storage(const char* part) {
   }
 }
 
+char** getMultibootSystems(char **systems) {
+    int numSystems = 0;
+    DIR           *d;
+    struct dirent *dir;
+    d = opendir(FOLDER_MULTIBOOT_SYSTEMS);
+    if (d)
+    {
+
+        while ((dir = readdir(d)) != NULL)
+        {
+            if(!strcmp(dir->d_name,".") || !strcmp(dir->d_name,"..")) continue;
+            if(!(dir->d_type & DT_DIR)) continue;
+            if(!strcmp(dir->d_name,".nand")) continue;
+            printf("Folder: %s\n", dir->d_name);
+            int num = numSystems++;
+			systems[num] = malloc(strlen(dir->d_name)+1);
+			sprintf(systems[num], "%s", dir->d_name);
+
+        }
+        systems[numSystems++] = NULL;
+
+        closedir(d);
+    }
+
+    return systems;
+}
+
+void freeMultibootSystemsResult(char **systems) {
+	int i;
+	for(i=0; systems[i]; i++) {
+		free(systems[i]);
+	}
+}
