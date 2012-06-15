@@ -80,7 +80,7 @@ extern char* TABS[];
 // Menus title
 char** prepend_title(const char** headers);
 void free_menu_headers(char** headers);
-struct UiMenuResult get_menu_selection(char** headers, char** tabs, struct UiMenuItem* items, int menu_only, int initial_selection);
+struct UiMenuResult get_menu_selection(char** headers, char** tabs, struct UiMenuItem* items, int menu_only, int initial_selection, int initial_position);
 static void recalcSquare();
 void ui_get_time(char* result);
 void ui_get_usbstate(char* result);
@@ -92,5 +92,6 @@ int timeval_subtract(struct timeval *result, struct timeval *t2, struct timeval 
 struct ui_touchresult ui_handle_touch(struct ui_input_event uev);
 void enableMenuSelection(int i);
 int is_menuSelection_enabled();
+int ui_get_menuposition();
 
 #endif

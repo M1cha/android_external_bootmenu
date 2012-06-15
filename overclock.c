@@ -171,7 +171,7 @@ menu_overclock_status(int intl_value) {
     options[2] = buildMenuItem(MENUITEM_SMALL, "<--Go Back", NULL);
     options[3] = buildMenuItem(MENUITEM_NULL, NULL, NULL);
 
-    struct UiMenuResult ret = get_menu_selection(title_headers, TABS, options, 1, mode);
+    struct UiMenuResult ret = get_menu_selection(title_headers, TABS, options, 1, mode, 0);
 
     switch (ret.result) {
       case OVERCLOCK_STATUS_ENABLE:
@@ -248,7 +248,7 @@ menu_overclock_scaling(void) {
     options[GOV_COUNT]   = buildMenuItem(MENUITEM_SMALL, "<--Go Back", NULL);
     options[GOV_COUNT+1] = buildMenuItem(MENUITEM_NULL, NULL, NULL);
 
-    struct UiMenuResult ret = get_menu_selection(title_headers, TABS, options, 1, mode);
+    struct UiMenuResult ret = get_menu_selection(title_headers, TABS, options, 1, mode, 0);
 
     switch (ret.result) {
       case OVERCLOCK_SCALING_Conservative:
@@ -337,7 +337,7 @@ menu_set_value(char* name, int intl_value, int min_value, int max_value, int ste
     sprintf(items[2].title, "[+%d %s]", step, name);
     sprintf(items[3].title, "[-%d %s]", step, name);
 
-    struct UiMenuResult ret = get_menu_selection(title_headers, TABS, items, 1, select);
+    struct UiMenuResult ret = get_menu_selection(title_headers, TABS, items, 1, select, 0);
 
     switch (ret.result) {
       case SETVALUE_ADD:
@@ -514,7 +514,7 @@ show_menu_overclock(void) {
 
     sprintf(items[36].title, "+iosched_sio: [%d]", get_overclock_value("iosched_sio"));
 
-    struct UiMenuResult ret = get_menu_selection(title_headers, TABS, items, 1, select);
+    struct UiMenuResult ret = get_menu_selection(title_headers, TABS, items, 1, select, 0);
 
     switch (ret.result) {
       case OVERCLOCK_STATUS:

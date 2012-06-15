@@ -157,7 +157,7 @@ int show_menu_boot(void) {
     sprintf(opt_adb, LABEL_TOGGLE_ADB " %s", boot_with_adb ? "enable":"disable");
     items[TOGGLE_ADB].title = opt_adb;
 
-    ret = get_menu_selection(title_headers, TABS, items, 1, 0);
+    ret = get_menu_selection(title_headers, TABS, items, 1, 0, 0);
 
     if (ret.result == GO_BACK) {
         goto exit_loop;
@@ -304,7 +304,7 @@ int show_config_bootmode(void) {
     menu_opts[LAST_MODE] = buildMenuItem(MENUITEM_SMALL, "<--Go Back", NULL);
     menu_opts[LAST_MODE+1] = buildMenuItem(MENUITEM_NULL, NULL, NULL);
 
-    ret = get_menu_selection(title_headers, TABS, menu_opts, 1, mode);
+    ret = get_menu_selection(title_headers, TABS, menu_opts, 1, mode, 0);
     if (ret.result >= LAST_MODE || strlen(menu_opts[ret.result].title) == 0) {
       //back
       res=1;
@@ -451,7 +451,7 @@ int show_menu_tools(void) {
     {MENUITEM_NULL, NULL, NULL},
   };
 
-  struct UiMenuResult ret = get_menu_selection(title_headers, TABS, items, 1, 0);
+  struct UiMenuResult ret = get_menu_selection(title_headers, TABS, items, 1, 0, 0);
 
   switch (ret.result) {
     case TOOL_ADB:
@@ -547,7 +547,7 @@ int show_menu_recovery(void) {
     {MENUITEM_NULL, NULL, NULL},
   };
 
-  struct UiMenuResult ret = get_menu_selection(title_headers, TABS, items, 1, 0);
+  struct UiMenuResult ret = get_menu_selection(title_headers, TABS, items, 1, 0, 0);
 
   switch (ret.result) {
     case RECOVERY_CUSTOM:
@@ -600,7 +600,7 @@ int show_menu_multiboot(void) {
   #define MULTIBOOT_GEN_SETTINGS     3
   #define MULTIBOOT_BACK     		  4
 
-  int status, res=0;
+  int status;
   char** args;
   FILE* f;
   char opt_system[300];
@@ -622,7 +622,7 @@ int show_menu_multiboot(void) {
     {MENUITEM_SMALL, "<--Go Back", NULL},
     {MENUITEM_NULL, NULL, NULL},
   };
-
+  int select=0;
   for(;;) {
 	  if(get_multiboot_default_system(mb_system)==0)
 		  sprintf(opt_system, "Set Bootmode: [%s]", mb_system);
@@ -630,12 +630,12 @@ int show_menu_multiboot(void) {
 		  sprintf(opt_system, "Set Bootmode: [%s]", "Show List");
 	  items[0].title = opt_system;
 
-	  struct UiMenuResult ret = get_menu_selection(title_headers, TABS, items, 1, 0);
+	  struct UiMenuResult ret = get_menu_selection(title_headers, TABS, items, 1, 0, select);
 
 	  switch (ret.result) {
 
 		case MULTIBOOT_BOOTMODE:
-			mbs_result = show_menu_multiboot_system_selection();
+			mbs_result = show_menu_multiboot_system_selection(MULTIBOOTSYSTEM_SELECTOR_TYPE_NORMAL);
 			if(mbs_result.type==MULTIBOOTSYSTEM_RESULT_TYPE_SELECTION) {
 				set_multiboot_default_system(mbs_result.value);
 			}
@@ -644,14 +644,119 @@ int show_menu_multiboot(void) {
 			}
 		  break;
 
+		case MULTIBOOT_RECOVERY:
+			if(show_menu_multiboot_recovery()) return 1;
+			break;
+
 		case MULTIBOOT_BACK:
 		case GO_BACK:
 		  goto exit_loop_m1;
 		  break;
 	  }
+	  select=ret.result;
   }
 
   exit_loop_m1:
+	  free_menu_headers(title_headers);
+	  return 0;
+}
+
+int exec_multiboot_recovery(char* file) {
+	char** args;
+	struct multibootsystem_result mbs_result;
+	int status,res=0;
+
+	mbs_result = show_menu_multiboot_system_selection(MULTIBOOTSYSTEM_SELECTOR_TYPE_RECOVERY);
+    if(mbs_result.type==MULTIBOOTSYSTEM_RESULT_TYPE_SELECTION) {
+		ui_print("Starting Recovery..\n");
+		ui_print("This can take a couple of seconds.\n");
+
+		// pause UI
+		ui_show_text(DISABLE);
+		ui_stop_redraw();
+
+		args = malloc(sizeof(char*) * 3);
+		args[0] = file;
+		args[1] = mbs_result.value;
+		args[2] = NULL;
+
+		// exec script
+		status = exec_script(FILE_MULTIBOOT_RECOVERY, ENABLE, args);
+
+		// cleanup
+		free(args);
+
+		// resume UI
+		ui_resume_redraw();
+		ui_show_text(ENABLE);
+
+		if (!status) res = 1;
+    }
+
+    return res;
+}
+
+/**
+ * show_menu_multiboot_recovery()
+ *
+ */
+int show_menu_multiboot_recovery(void) {
+
+#ifdef USE_STABLE_RECOVERY
+  #define MB_RECOVERY_CUSTOM     0
+  #define MB_RECOVERY_STABLE     1
+  #define MB_RECOVERY_GOBACK     2
+#else
+  #define MB_RECOVERY_CUSTOM     0
+  #define MB_RECOVERY_GOBACK     1
+#endif
+
+  int status, res=0;
+  FILE* f;
+
+  const char* headers[] = {
+        " # Recovery -->",
+        "",
+        NULL
+  };
+  char** title_headers = prepend_title(headers);
+
+  struct UiMenuItem items[] = {
+    {MENUITEM_SMALL, "Custom Recovery", NULL},
+#ifdef USE_STABLE_RECOVERY
+    {MENUITEM_SMALL, "Stable Recovery", NULL},
+#endif
+    {MENUITEM_SMALL, "<--Go Back", NULL},
+    {MENUITEM_NULL, NULL, NULL},
+  };
+  int select=0;
+  for(;;) {
+	  struct UiMenuResult ret = get_menu_selection(title_headers, TABS, items, 1, select, 0);
+
+	  switch (ret.result) {
+		case RECOVERY_CUSTOM:
+			if(exec_multiboot_recovery("CUSTOM"))
+				goto exit_loop_multiboot_recovery;
+		break;
+
+	#ifdef USE_STABLE_RECOVERY
+		case RECOVERY_STABLE:
+			if(exec_multiboot_recovery("STABLE"))
+				goto exit_loop_multiboot_recovery;
+		  break;
+	#endif
+
+		case GO_BACK:
+		case MB_RECOVERY_GOBACK:
+		  goto exit_loop_multiboot_recovery;
+		  break;
+
+		default:
+		  break;
+	  }
+	  select=ret.result;
+  }
+  exit_loop_multiboot_recovery:
 	  free_menu_headers(title_headers);
 	  return res;
 }
@@ -660,7 +765,7 @@ int show_menu_multiboot(void) {
  * show_menu_multiboot_system_selection()
  *
  */
-struct multibootsystem_result show_menu_multiboot_system_selection() {
+struct multibootsystem_result show_menu_multiboot_system_selection(int type) {
 
   //last mode enabled for default modes (adb disabled)
 
@@ -676,99 +781,87 @@ struct multibootsystem_result show_menu_multiboot_system_selection() {
   char** title_headers = prepend_title(headers);
 
   struct UiMenuItem menu_opts[SYSTEMS_MAX];
-  int i, mode, numItems;
+  int i, mode, numItems=0, numSystems, ITEM_BACK=-1, ITEM_SHUTDOWN=-1;
   struct UiMenuResult ret;
+
+  if(type==MULTIBOOTSYSTEM_SELECTOR_TYPE_NORMAL)numItems=2;
 
   // load systems into opts
   char **systems = malloc(sizeof(char*)*SYSTEMS_MAX);
-  getMultibootSystems(systems);
-  for(numItems=2; systems[numItems-2]; numItems++) {
-	  if(numItems<SYSTEMS_MAX) menu_opts[numItems] = buildMenuItem(MENUITEM_SMALL, systems[numItems-2], NULL);
+  numSystems=getMultibootSystems(systems);
+  for(i=0; i<numSystems; i++) {
+	  if(numItems<SYSTEMS_MAX) menu_opts[numItems++] = buildMenuItem(MENUITEM_SMALL, systems[i], NULL);
   }
 
-  menu_opts[0] = buildMenuItem(MENUITEM_SMALL, "Show List", NULL);
-  menu_opts[1] = buildMenuItem(MENUITEM_SMALL, "", NULL);
-  menu_opts[numItems++] = buildMenuItem(MENUITEM_SMALL, "", NULL);
+  // menu_header for normal-mode
+  if(type==MULTIBOOTSYSTEM_SELECTOR_TYPE_NORMAL) {
+	  menu_opts[0] = buildMenuItem(MENUITEM_SMALL, "Show List", NULL);
+	  menu_opts[1] = buildMenuItem(MENUITEM_SMALL, "", NULL);
+  }
 
-  int ITEM_BACK = numItems++;
-  menu_opts[ITEM_BACK] = buildMenuItem(MENUITEM_SMALL, "<--Go Back", NULL);
+  // space-item
+  menu_opts[numItems++] = buildMenuItem(MENUITEM_SMALL, "", NULL);
+  // go-back-item
+  if(type==MULTIBOOTSYSTEM_SELECTOR_TYPE_NORMAL || type==MULTIBOOTSYSTEM_SELECTOR_TYPE_RECOVERY) {
+	  ITEM_BACK = numItems++;
+	  menu_opts[ITEM_BACK] = buildMenuItem(MENUITEM_SMALL, "<--Go Back", NULL);
+  }
+  // shutdown-item
+  else if(type==MULTIBOOTSYSTEM_SELECTOR_TYPE_PREBOOT) {
+  	  ITEM_SHUTDOWN = numItems++;
+  	  menu_opts[ITEM_SHUTDOWN] = buildMenuItem(MENUITEM_SMALL, "Shutdown", NULL);
+  }
+
+  // NULL-item
   menu_opts[numItems++] = buildMenuItem(MENUITEM_NULL, NULL, NULL);
 
+  int select=0;
   for (;;) {
-    ret = get_menu_selection(title_headers, TABS, menu_opts, 1, 0);
+    ret = get_menu_selection(title_headers, TABS, menu_opts, 1, select, 0);
 
-    if(ret.result==ITEM_BACK || ret.result==GO_BACK) break;
+    // go back
+    if(type!=MULTIBOOTSYSTEM_SELECTOR_TYPE_PREBOOT && (ret.result==ITEM_BACK || ret.result==GO_BACK)) {
+    	res.type = MULTIBOOTSYSTEM_RESULT_TYPE_ABORT;
+    	break;
+    }
 
-    if(ret.result==0) {
+    // shutdown-item
+    else if(type==MULTIBOOTSYSTEM_SELECTOR_TYPE_PREBOOT && ret.result==ITEM_SHUTDOWN) {
+		 sync();
+		__reboot(LINUX_REBOOT_MAGIC1, LINUX_REBOOT_MAGIC2, LINUX_REBOOT_CMD_POWER_OFF, NULL);
+		res.type = MULTIBOOTSYSTEM_RESULT_TYPE_ABORT;
+	}
+
+    // show-list-item
+    else if(type==MULTIBOOTSYSTEM_SELECTOR_TYPE_NORMAL && ret.result==0) {
     	res.type = MULTIBOOTSYSTEM_RESULT_TYPE_SHOWLIST;
     	break;
     }
 
-    else if(ret.result>1 && ret.result<ITEM_BACK-1) {
+    // system-selection for normal
+	else if(type==MULTIBOOTSYSTEM_SELECTOR_TYPE_NORMAL && (ret.result>1 && ret.result<ITEM_BACK-1)) {
+		res.type = MULTIBOOTSYSTEM_RESULT_TYPE_SELECTION;
+		res.value = menu_opts[ret.result].title;
+		break;
+	}
+
+    // system-selection for recovery
+    else if(type==MULTIBOOTSYSTEM_SELECTOR_TYPE_RECOVERY && (ret.result>=0 && ret.result<ITEM_BACK-1)) {
     	res.type = MULTIBOOTSYSTEM_RESULT_TYPE_SELECTION;
     	res.value = menu_opts[ret.result].title;
     	break;
     }
 
-  }
-  freeMultibootSystemsResult(systems);
-  free(systems);
-  free_menu_headers(title_headers);
-  return res;
-}
+    // system-selection for preboot
+	else if(type==MULTIBOOTSYSTEM_SELECTOR_TYPE_PREBOOT && (ret.result>=0 && ret.result<ITEM_SHUTDOWN-1)) {
+		res.type = MULTIBOOTSYSTEM_RESULT_TYPE_SELECTION;
+		res.value = menu_opts[ret.result].title;
+		break;
+	}
 
-/**
- * show_menu_multiboot_system_preboot_selection()
- *
- */
-char* show_menu_multiboot_system_preboot_selection() {
-
-  //last mode enabled for default modes (adb disabled)
-
-  char* res;
-
-  const char* headers[3] = {
-          " # Multiboot --> Select System -->",
-          "",
-          NULL
-  };
-  char** title_headers = prepend_title(headers);
-
-  struct UiMenuItem menu_opts[SYSTEMS_MAX];
-  int i, mode, numItems;
-  struct UiMenuResult ret;
-
-  // load systems into opts
-  char **systems = malloc(sizeof(char*)*SYSTEMS_MAX);
-  getMultibootSystems(systems);
-  for(numItems=2; systems[numItems-2]; numItems++) {
-  	  if(numItems<SYSTEMS_MAX) menu_opts[numItems] = buildMenuItem(MENUITEM_SMALL, systems[numItems-2], NULL);
-  }
-
-  menu_opts[numItems++] = buildMenuItem(MENUITEM_SMALL, "", NULL);
-
-  int ITEM_SHUTDOWN = numItems++;
-  menu_opts[ITEM_SHUTDOWN] = buildMenuItem(MENUITEM_SMALL, "Shutdown", NULL);
-  menu_opts[numItems++] = buildMenuItem(MENUITEM_NULL, NULL, NULL);
-
-  int select = 0;
-  for (;;) {
-    ret = get_menu_selection(title_headers, TABS, menu_opts, 1, select);
-
-    if(ret.result==ITEM_SHUTDOWN) {
-    	 sync();
-		__reboot(LINUX_REBOOT_MAGIC1, LINUX_REBOOT_MAGIC2, LINUX_REBOOT_CMD_POWER_OFF, NULL);
-		return NULL;
-    }
-
-    else if(ret.result>1 && ret.result<ITEM_SHUTDOWN-1) {
-    	res = menu_opts[ret.result].title;
-    	break;
-    }
     select = ret.result;
   }
-
-  freeMultibootSystemsResult(systems);
+  if(numSystems>0)freeMultibootSystemsResult(systems);
   free(systems);
   free_menu_headers(title_headers);
   return res;
@@ -879,6 +972,7 @@ int snd_system(int ui) {
   int i;
   char mb_system[256];
   char **args = malloc(sizeof(char*) * 2);
+  struct multibootsystem_result mbs_result;
 
   // get multiboot-system
   if(get_multiboot_default_system(mb_system)==0) {
@@ -888,8 +982,18 @@ int snd_system(int ui) {
 	  if(!ui) {
 		  ui_init();
 		  ui_show_text(ENABLE);
+
+		  // initialize multiboot
+		  if(file_exists((char*)FILE_MULTIBOOT_BOOTMENUINIT))
+			  exec_script(FILE_MULTIBOOT_BOOTMENUINIT, ENABLE, NULL);
 	  }
-	  args[0] = show_menu_multiboot_system_preboot_selection();
+	  mbs_result = show_menu_multiboot_system_selection(MULTIBOOTSYSTEM_SELECTOR_TYPE_PREBOOT);
+	  if(mbs_result.type==MULTIBOOTSYSTEM_RESULT_TYPE_SELECTION)
+		  args[0] = mbs_result.value;
+	  else {
+		  free(args);
+		  return -1;
+	  }
 	  ui_show_text(0);
 	  ui_stop_redraw();
   }
@@ -1500,7 +1604,7 @@ int mount_usb_storage(const char* part) {
   }
 }
 
-char** getMultibootSystems(char **systems) {
+int getMultibootSystems(char **systems) {
     int numSystems = 0;
     DIR           *d;
     struct dirent *dir;
@@ -1519,12 +1623,11 @@ char** getMultibootSystems(char **systems) {
 			sprintf(systems[num], "%s", dir->d_name);
 
         }
-        systems[numSystems++] = NULL;
-
+        systems[numSystems] = NULL;
         closedir(d);
     }
 
-    return systems;
+    return numSystems;
 }
 
 void freeMultibootSystemsResult(char **systems) {

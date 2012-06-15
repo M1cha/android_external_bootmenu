@@ -113,17 +113,18 @@ void free_menu_headers(char **headers) {
  *
  */
 struct UiMenuResult get_menu_selection(char** headers, char** tabs, struct UiMenuItem* items, int menu_only,
-                       int initial_selection) {
+                       int initial_selection, int initial_position) {
   // throw away keys pressed previously, so user doesn't
   // accidentally trigger menu items.
   ui_clear_key_queue();
 
-  ui_start_menu(headers, tabs, items, initial_selection);
+  ui_start_menu(headers, tabs, items, initial_selection, 0);
   int selected = initial_selection;
   struct UiMenuResult ret;
   struct ui_touchresult tret;
   ret.result = -1;
   ret.type = -1;
+  ret.menu_position = 0;
 
   while (ret.result < 0) {
 
@@ -191,6 +192,7 @@ struct UiMenuResult get_menu_selection(char** headers, char** tabs, struct UiMen
     } //switch
 
   }
+  //ret.menu_position = ui_get_menuposition();
   ui_end_menu();
 
   return ret;
@@ -212,6 +214,7 @@ static void prompt_and_wait() {
 
   int select = 0;
   int enable_multiboot = 1;
+  int position = 0;
 
   if(!file_exists((char*)FILE_2NDSYSTEM)) {
 	  MENU_ITEMS[ITEM_MULTIBOOT].title="";
@@ -219,7 +222,7 @@ static void prompt_and_wait() {
   }
 
   for (;;) {
-    struct UiMenuResult menuret = get_menu_selection(main_headers, TABS, MENU_ITEMS, 0, select);
+    struct UiMenuResult menuret = get_menu_selection(main_headers, TABS, MENU_ITEMS, 0, select, position);
 
     // device-specific code may take some action here.  It may
     // return one of the core actions handled in the switch
@@ -253,7 +256,6 @@ static void prompt_and_wait() {
       case ITEM_MULTIBOOT:
     	if(enable_multiboot) {
 			if (show_menu_multiboot()) return;
-
     	}
     	break;
       case ITEM_POWEROFF:
@@ -262,6 +264,7 @@ static void prompt_and_wait() {
         return;
       }
       select = menuret.result;
+      position = menuret.menu_position;
     }
   }
 }
@@ -313,6 +316,10 @@ static int run_bootmenu_ui(int mode) {
   LOGI("Start Android BootMenu....\n");
   ui_reset_progress();
 
+  // initialize multiboot
+  if(file_exists((char*)FILE_MULTIBOOT_BOOTMENUINIT))
+	  exec_script(FILE_MULTIBOOT_BOOTMENUINIT, ENABLE, NULL);
+
   main_headers = prepend_title((const char**)MENU_HEADERS);
 
   /*
@@ -348,6 +355,11 @@ static int run_bootmenu_ui(int mode) {
   free_menu_headers(main_headers);
 
   ui_finish();
+
+  // cleanup multiboot
+  if(file_exists((char*)FILE_MULTIBOOT_BOOTMENUEXIT))
+  	  exec_script(FILE_MULTIBOOT_BOOTMENUEXIT, DISABLE, NULL);
+
   return 0;
 }
 

@@ -28,6 +28,7 @@
 struct UiMenuResult {
   int type;
   int result;
+  int menu_position;
 };
 
 #define MENUITEM_FULL 1
@@ -91,7 +92,7 @@ void ui_print_str(char *str);
 // Display some header text followed by a menu of items, which appears
 // at the top of the screen (in place of any scrolling ui_print()
 // output, if necessary).
-void ui_start_menu(char** headers, char** tabs, struct UiMenuItem* items, int initial_selection);
+void ui_start_menu(char** headers, char** tabs, struct UiMenuItem* items, int initial_selection, int initial_position);
 // Set the menu highlight to the given index, and return it (capped to
 // the range [0..numitems).
 int ui_menu_select(int sel);

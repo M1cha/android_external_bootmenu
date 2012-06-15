@@ -928,7 +928,7 @@ void ui_print(const char *fmt, ...)
   ui_print_str(buf);
 }
 
-void ui_start_menu(char** headers, char** tabs, struct UiMenuItem* items, int initial_selection) {
+void ui_start_menu(char** headers, char** tabs, struct UiMenuItem* items, int initial_selection, int initial_position) {
   int i;
   pthread_mutex_lock(&gUpdateMutex);
 
@@ -952,7 +952,7 @@ void ui_start_menu(char** headers, char** tabs, struct UiMenuItem* items, int in
     menu_items = i;
     show_menu = 1;
     menu_sel = initial_selection;
-    menutop_diff=0;
+    menutop_diff=initial_position;
   }
 
   pthread_mutex_unlock(&gUpdateMutex);
@@ -1224,4 +1224,8 @@ void enableMenuSelection(int i) {
 
 int is_menuSelection_enabled() {
   return show_menu_selection;
+}
+
+int ui_get_menuposition() {
+	return menutop_diff;
 }

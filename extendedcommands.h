@@ -58,9 +58,12 @@ static const char *SYS_POWER_CONNECTED  = "/sys/class/power_supply/ac/online";
 static const char *SYS_USB_CONNECTED    = "/sys/class/power_supply/usb/online";
 static const char *SYS_BATTERY_LEVEL    = "/sys/class/power_supply/battery/charge_counter"; // content: 0 to 100
 
-// these paths are defined in fshook.config.sh, too
+// this path is defined in fshook.config.sh, too
 static const char *FOLDER_MULTIBOOT_SYSTEMS    = "/fshook/mounts/imageSrc/multiboot/";
 static const char *FILE_MULTIBOOT_DEFAULT_SYSTEM  = BM_ROOTDIR "/config/multiboot_default_system.conf";
+static const char *FILE_MULTIBOOT_RECOVERY  = BM_ROOTDIR "/2nd-system/fshook.bootrecovery.sh";
+static const char *FILE_MULTIBOOT_BOOTMENUINIT  = BM_ROOTDIR "/2nd-system/fshook.bootmenu_init.sh";
+static const char *FILE_MULTIBOOT_BOOTMENUEXIT  = BM_ROOTDIR "/2nd-system/fshook.bootmenu_exit.sh";
 
 #if STOCK_VERSION
 
@@ -79,8 +82,9 @@ int show_menu_overclock(void);
 int show_menu_tools(void);
 int show_menu_recovery(void);
 int show_menu_multiboot(void);
+int exec_multiboot_recovery(char* file);
+int show_menu_multiboot_recovery(void);
 struct multibootsystem_result show_menu_multiboot_system_selection();
-char* show_menu_multiboot_system_preboot_selection();
 
 int usb_connected(void);
 int adb_started(void);
@@ -118,7 +122,7 @@ int log_dumpfile(char * file);
 int set_usb_device_mode(const char *mode);
 int mount_usb_storage(const char *part);
 
-char** getMultibootSystems(char **systems);
+int getMultibootSystems(char **systems);
 void freeMultibootSystemsResult(char **systems);
 
 struct multibootsystem_result {
@@ -128,5 +132,9 @@ struct multibootsystem_result {
 #define MULTIBOOTSYSTEM_RESULT_TYPE_ABORT    -1
 #define MULTIBOOTSYSTEM_RESULT_TYPE_SHOWLIST  0
 #define MULTIBOOTSYSTEM_RESULT_TYPE_SELECTION 1
+
+#define MULTIBOOTSYSTEM_SELECTOR_TYPE_NORMAL   0
+#define MULTIBOOTSYSTEM_SELECTOR_TYPE_PREBOOT  1
+#define MULTIBOOTSYSTEM_SELECTOR_TYPE_RECOVERY 2
 
 #endif // EXTENDED_COMMAND_H
