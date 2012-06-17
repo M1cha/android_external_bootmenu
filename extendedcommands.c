@@ -1617,6 +1617,7 @@ int getMultibootSystems(char **systems) {
             if(!strcmp(dir->d_name,".") || !strcmp(dir->d_name,"..")) continue;
             if(!(dir->d_type & DT_DIR)) continue;
             if(!strcmp(dir->d_name,".nand")) continue;
+            if(!strcmp(dir->d_name,".mbm")) continue;
             printf("Folder: %s\n", dir->d_name);
             int num = numSystems++;
 			systems[num] = malloc(strlen(dir->d_name)+1);
