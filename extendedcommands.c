@@ -37,7 +37,7 @@
 
 //#define DEBUG_ALLOC
 
-#define MODES_COUNT 12
+#define MODES_COUNT 13
 const char* modes[] = {
   "bootmenu",
   "2nd-init",
@@ -51,6 +51,7 @@ const char* modes[] = {
   "recovery",
   "recovery-dev",
   "shell",
+  "2nd-system-recovery",
 };
 
 // user friendly menu labels
@@ -884,6 +885,8 @@ int snd_init(int ui) {
   else
     LOGI("Start " LABEL_2NDINIT " boot....\n");
 
+  set_lastbootmode("2nd-init");
+
   ui_stop_redraw();
 #ifdef USE_DUALCORE_DIRTY_HACK
     if(!ui)
@@ -931,6 +934,8 @@ int snd_boot(int ui) {
   else
     LOGI("Start " LABEL_2NDBOOT " boot....\n");
 
+  set_lastbootmode("2nd-boot");
+
   ui_stop_redraw();
 #ifdef USE_DUALCORE_DIRTY_HACK
     if(!ui)
@@ -974,18 +979,19 @@ int snd_system(int ui) {
   char **args = malloc(sizeof(char*) * 2);
   struct multibootsystem_result mbs_result;
 
+  // check for bypass file
+  if(get_multiboot_bootmode(mb_system, 1)==0) {
+	  args[0] = mb_system;
+  }
+
   // get multiboot-system
-  if(get_multiboot_default_system(mb_system)==0) {
+  else if(get_multiboot_default_system(mb_system)==0) {
 	  args[0] = mb_system;
   }
   else {
 	  if(!ui) {
 		  ui_init();
 		  ui_show_text(ENABLE);
-
-		  // initialize multiboot
-		  if(file_exists((char*)FILE_MULTIBOOT_BOOTMENUINIT))
-			  exec_script(FILE_MULTIBOOT_BOOTMENUINIT, ENABLE, NULL);
 	  }
 	  mbs_result = show_menu_multiboot_system_selection(MULTIBOOTSYSTEM_SELECTOR_TYPE_PREBOOT);
 	  if(mbs_result.type==MULTIBOOTSYSTEM_RESULT_TYPE_SELECTION)
@@ -1005,6 +1011,9 @@ int snd_system(int ui) {
     ui_print("Start " LABEL_2NDSYSTEM " boot....\n");
   else
     LOGI("Start " LABEL_2NDSYSTEM " boot....\n");
+
+  set_lastbootmode("2nd-system");
+  set_lastmbsystem(args[0]);
 
   ui_stop_redraw();
 #ifdef USE_DUALCORE_DIRTY_HACK
@@ -1217,6 +1226,25 @@ int set_multiboot_default_system(const char* str) {
   }
 
   ui_print("ERROR: unable to write multiboot-system %s\n", str);
+  return 1;
+}
+
+int get_multiboot_bootmode(char* name, int clean) {
+  name[0]=0x0;
+  FILE* f = fopen(FILE_MULTIBOOT_BOOTMODE, "r");
+  if (f != NULL) {
+      fscanf(f, "%s", name);
+      fclose(f);
+
+      if(clean) {
+    	  exec_script(FILE_MULTIBOOT_BOOTMODE_CLEAN,DISABLE, NULL);
+      }
+
+      LOGI("multiboot_bootmode=%s\n", name);
+      if(strlen(name)==0) return 1;
+      return 0;
+  }
+
   return 1;
 }
 
@@ -1636,4 +1664,34 @@ void freeMultibootSystemsResult(char **systems) {
 	for(i=0; systems[i]; i++) {
 		free(systems[i]);
 	}
+}
+
+int set_lastbootmode(const char* str) {
+  FILE* f = fopen(FILE_LASTBOOTMODE, "w");
+
+  if (f != NULL) {
+    fprintf(f, "%s", str);
+    fflush(f);
+    fclose(f);
+    sync();
+    return 0;
+  }
+
+  ui_print("ERROR: unable to write lastbootmode %s\n", str);
+  return 1;
+}
+
+int set_lastmbsystem(const char* str) {
+  FILE* f = fopen(FILE_LASTMBSYSTEM, "w");
+
+  if (f != NULL) {
+    fprintf(f, "%s", str);
+    fflush(f);
+    fclose(f);
+    sync();
+    return 0;
+  }
+
+  ui_print("ERROR: unable to write lastmbsystem %s\n", str);
+  return 1;
 }

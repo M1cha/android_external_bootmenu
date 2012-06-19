@@ -316,10 +316,6 @@ static int run_bootmenu_ui(int mode) {
   LOGI("Start Android BootMenu....\n");
   ui_reset_progress();
 
-  // initialize multiboot
-  if(file_exists((char*)FILE_MULTIBOOT_BOOTMENUINIT))
-	  exec_script(FILE_MULTIBOOT_BOOTMENUINIT, ENABLE, NULL);
-
   main_headers = prepend_title((const char**)MENU_HEADERS);
 
   /*
@@ -356,10 +352,6 @@ static int run_bootmenu_ui(int mode) {
 
   ui_finish();
 
-  // cleanup multiboot
-  if(file_exists((char*)FILE_MULTIBOOT_BOOTMENUEXIT))
-  	  exec_script(FILE_MULTIBOOT_BOOTMENUEXIT, DISABLE, NULL);
-
   return 0;
 }
 
@@ -380,6 +372,10 @@ static int run_bootmenu(void) {
     // init rootfs and mount cache
     exec_script(FILE_PRE_MENU, DISABLE, NULL);
 
+    // initialize multiboot
+    if(file_exists((char*)FILE_MULTIBOOT_BOOTMENUINIT))
+	    exec_script(FILE_MULTIBOOT_BOOTMENUINIT, ENABLE, NULL);
+
     led_alert("blue", ENABLE);
 
     defmode = get_default_bootmode();
@@ -389,7 +385,8 @@ static int run_bootmenu(void) {
 
     if (mode == int_mode("bootmenu")
      || mode == int_mode("recovery")
-     || mode == int_mode("shell")) {
+     || mode == int_mode("shell")
+     || mode == int_mode("2nd-system-recovery")) {
         // dont wait if these modes are asked
     } else {
         status = (wait_key(KEY_VOLUMEDOWN) ? BUTTON_PRESSED : BUTTON_TIMEOUT);
@@ -445,6 +442,27 @@ static int run_bootmenu(void) {
           exec_script(FILE_STABLERECOVERY, DISABLE, NULL);
           status = BUTTON_TIMEOUT;
       }
+      else if (mode == int_mode("2nd-system-recovery")) {
+    	  led_alert("blue", DISABLE);
+		  char mb_system[256];
+		  if(get_multiboot_bootmode(mb_system, 1)==0) {
+			  char ** args = malloc(sizeof(char*) * 3);
+			  args[0] = "STABLE";
+			  args[1] = mb_system;
+			  args[2] = NULL;
+
+			  // exec script
+			  status = exec_script(FILE_MULTIBOOT_RECOVERY, ENABLE, args);
+
+			  // cleanup
+			  free(args);
+		  }
+		  else {
+			  led_alert("red", ENABLE);
+		  }
+
+		  status = BUTTON_PRESSED;
+	  }
       else if (mode == int_mode("shell")) {
           led_alert("blue", DISABLE);
           exec_script(FILE_ADBD, DISABLE, NULL);
@@ -466,6 +484,10 @@ static int run_bootmenu(void) {
     }
 
   }
+  // cleanup multiboot
+  if(file_exists((char*)FILE_MULTIBOOT_BOOTMENUEXIT))
+	  exec_script(FILE_MULTIBOOT_BOOTMENUEXIT, DISABLE, NULL);
+
   return EXIT_SUCCESS;
 }
 
@@ -497,6 +519,11 @@ int main(int argc, char **argv) {
 #ifndef UNLOCKED_DEVICE
     fprintf(stdout, "Run BootMenu..\n");
     exec_script(FILE_PRE_MENU, DISABLE, NULL);
+
+    // initialize multiboot
+    if(file_exists((char*)FILE_MULTIBOOT_BOOTMENUINIT))
+	    exec_script(FILE_MULTIBOOT_BOOTMENUINIT, ENABLE, NULL);
+
     int mode = get_bootmode(0,0);
     result = run_bootmenu_ui(mode);
 #else

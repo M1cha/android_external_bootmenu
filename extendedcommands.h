@@ -43,27 +43,31 @@ static const char *FILE_CDROM     = BM_ROOTDIR "/script/cdrom.sh";
 static const char *FILE_SYSTEM    = BM_ROOTDIR "/script/system.sh";
 static const char *FILE_DATA      = BM_ROOTDIR "/script/data.sh";
 
-static const char *FILE_OVERCLOCK       = BM_ROOTDIR "/script/overclock.sh";
-static const char *FILE_OVERCLOCK_CONF  = BM_ROOTDIR "/config/overclock.conf";
+static const char *FILE_OVERCLOCK       			= BM_ROOTDIR "/script/overclock.sh";
+static const char *FILE_OVERCLOCK_CONF  			= BM_ROOTDIR "/config/overclock.conf";
 
-static const char *FILE_CUSTOMRECOVERY  = BM_ROOTDIR "/script/recovery.sh";
-static const char *FILE_STABLERECOVERY  = BM_ROOTDIR "/script/recovery_stable.sh";
-static const char *FILE_BOOTMODE_CLEAN  = BM_ROOTDIR "/script/bootmode_clean.sh";
+static const char *FILE_CUSTOMRECOVERY  			= BM_ROOTDIR "/script/recovery.sh";
+static const char *FILE_STABLERECOVERY  			= BM_ROOTDIR "/script/recovery_stable.sh";
+static const char *FILE_BOOTMODE_CLEAN  			= BM_ROOTDIR "/script/bootmode_clean.sh";
+static const char *FILE_MULTIBOOT_BOOTMODE_CLEAN  = BM_ROOTDIR "/script/multiboot_bootmode_clean.sh";
 
 static const char *FILE_DEFAULTBOOTMODE = BM_ROOTDIR "/config/default_bootmode.conf";
 static const char *FILE_BOOTMODE        = BOOTMODE_CONFIG_FILE;
 static const char *FILE_BYPASS          = "/data/.bootmenu_bypass";
+static const char *FILE_LASTBOOTMODE    = "/cache/bootmenu/last_bootmode";
+static const char *FILE_LASTMBSYSTEM    = "/cache/bootmenu/last_mbsystem";
 
 static const char *SYS_POWER_CONNECTED  = "/sys/class/power_supply/ac/online";
 static const char *SYS_USB_CONNECTED    = "/sys/class/power_supply/usb/online";
 static const char *SYS_BATTERY_LEVEL    = "/sys/class/power_supply/battery/charge_counter"; // content: 0 to 100
 
 // this path is defined in fshook.config.sh, too
-static const char *FOLDER_MULTIBOOT_SYSTEMS    = "/fshook/mounts/imageSrc/multiboot/";
+static const char *FOLDER_MULTIBOOT_SYSTEMS       = "/fshook/mounts/imageSrc/multiboot/";
 static const char *FILE_MULTIBOOT_DEFAULT_SYSTEM  = BM_ROOTDIR "/config/multiboot_default_system.conf";
-static const char *FILE_MULTIBOOT_RECOVERY  = BM_ROOTDIR "/2nd-system/fshook.bootrecovery.sh";
-static const char *FILE_MULTIBOOT_BOOTMENUINIT  = BM_ROOTDIR "/2nd-system/fshook.bootmenu_init.sh";
-static const char *FILE_MULTIBOOT_BOOTMENUEXIT  = BM_ROOTDIR "/2nd-system/fshook.bootmenu_exit.sh";
+static const char *FILE_MULTIBOOT_BOOTMODE        = "/cache/recovery/multiboot_bootmode.conf";
+static const char *FILE_MULTIBOOT_RECOVERY        = BM_ROOTDIR "/2nd-system/fshook.bootrecovery.sh";
+static const char *FILE_MULTIBOOT_BOOTMENUINIT    = BM_ROOTDIR "/2nd-system/fshook.bootmenu_init.sh";
+static const char *FILE_MULTIBOOT_BOOTMENUEXIT    = BM_ROOTDIR "/2nd-system/fshook.bootmenu_exit.sh";
 
 #if STOCK_VERSION
 
@@ -103,6 +107,7 @@ int get_bootmode(int clean, int log);
 
 int get_multiboot_default_system(char* name);
 int set_multiboot_default_system(const char* str);
+int get_multiboot_bootmode(char* name, int clean);
 
 int bootmode_write(const char* str);
 int next_bootmode_write(const char* str);
@@ -124,6 +129,8 @@ int mount_usb_storage(const char *part);
 
 int getMultibootSystems(char **systems);
 void freeMultibootSystemsResult(char **systems);
+int set_lastbootmode(const char* str);
+int set_lastmbsystem(const char* str);
 
 struct multibootsystem_result {
 	int type;
