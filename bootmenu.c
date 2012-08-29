@@ -482,11 +482,12 @@ static int run_bootmenu(void) {
 
         run_bootmenu_ui(mode);
     }
-
+    
+    // cleanup multiboot
+    if(file_exists((char*)FILE_MULTIBOOT_BOOTMENUEXIT))
+	    exec_script(FILE_MULTIBOOT_BOOTMENUEXIT, DISABLE, NULL);
+    
   }
-  // cleanup multiboot
-  if(file_exists((char*)FILE_MULTIBOOT_BOOTMENUEXIT))
-	  exec_script(FILE_MULTIBOOT_BOOTMENUEXIT, DISABLE, NULL);
 
   return EXIT_SUCCESS;
 }
@@ -522,7 +523,7 @@ int main(int argc, char **argv) {
 
     // initialize multiboot
     if(file_exists((char*)FILE_MULTIBOOT_BOOTMENUINIT))
-	    exec_script(FILE_MULTIBOOT_BOOTMENUINIT, ENABLE, NULL);
+	    exec_script(FILE_MULTIBOOT_BOOTMENUINIT, DISABLE, NULL);
 
     int mode = get_bootmode(0,0);
     result = run_bootmenu_ui(mode);

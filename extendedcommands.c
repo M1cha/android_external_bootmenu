@@ -887,6 +887,9 @@ int snd_init(int ui) {
 
   set_lastbootmode("2nd-init");
 
+  // cleanup multiboot
+  exec_script(FILE_MULTIBOOT_BOOTMENUEXIT, ui, NULL);
+  
   ui_stop_redraw();
 #ifdef USE_DUALCORE_DIRTY_HACK
     if(!ui)
@@ -936,6 +939,9 @@ int snd_boot(int ui) {
 
   set_lastbootmode("2nd-boot");
 
+  // cleanup multiboot
+  exec_script(FILE_MULTIBOOT_BOOTMENUEXIT, ui, NULL);
+  
   ui_stop_redraw();
 #ifdef USE_DUALCORE_DIRTY_HACK
     if(!ui)
@@ -1058,6 +1064,9 @@ int stk_boot(int ui) {
   int i;
 
   bypass_sign("yes");
+  
+  // cleanup multiboot
+  exec_script(FILE_MULTIBOOT_BOOTMENUEXIT, ui, NULL);
 
   if (ui)
     ui_print("Start " LABEL_NORMAL " boot....\n");
